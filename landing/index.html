@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MessageMemory — 大切な人とのメッセージを、一冊の本のように</title>
+<meta name="description" content="Facebook Messengerの会話をAIが話題ごとに章立て。写真もスタンプもまるごと、思い出の本棚として残せるiOSアプリ。">
+<meta property="og:title" content="MessageMemory">
+<meta property="og:description" content="大切な人とのメッセージを、一冊の本のように残せるiOSアプリ。">
+<meta property="og:type" content="website">
+<style>
+  :root {
+    --cream: #fdfaf3;
+    --paper: #f5ecd9;
+    --paper-soft: #faf3e3;
+    --wood-light: #e8d6b3;
+    --wood-medium: #c8a878;
+    --wood-dark: #8b6f47;
+    --wood-deep: #5a4528;
+    --ink: #3e2f1e;
+    --ink-soft: #7a6a52;
+    --border: #d6c5a4;
+    --border-soft: #e8dcc4;
+    --accent-rose: #d9889a;
+    --accent-honey: #d8a05a;
+    --accent-sage: #8aa878;
+    --shadow: 0 8px 24px rgba(94, 70, 32, 0.10);
+    --shadow-sm: 0 2px 6px rgba(94, 70, 32, 0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* 木目テクスチャ風背景（CSS curves） */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      radial-gradient(ellipse 120% 8% at 30% 12%, rgba(139, 111, 71, 0.05), transparent),
+      radial-gradient(ellipse 110% 6% at 70% 28%, rgba(139, 111, 71, 0.04), transparent),
+      radial-gradient(ellipse 130% 10% at 40% 45%, rgba(139, 111, 71, 0.06), transparent),
+      radial-gradient(ellipse 100% 7% at 65% 62%, rgba(139, 111, 71, 0.045), transparent),
+      radial-gradient(ellipse 115% 9% at 35% 80%, rgba(139, 111, 71, 0.05), transparent),
+      radial-gradient(ellipse 105% 6% at 70% 95%, rgba(139, 111, 71, 0.04), transparent);
+  }
+
+  main, header, footer { position: relative; z-index: 1; }
+
+  /* ヘッダー */
+  header {
+    padding: 24px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .logo {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--wood-deep);
+  }
+  .logo::before {
+    content: "✦";
+    color: var(--wood-medium);
+    margin-right: 8px;
+  }
+  .nav-links {
+    display: flex;
+    gap: 24px;
+    font-size: 14px;
+  }
+  .nav-links a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--wood-dark); }
+
+  /* Hero */
+  .hero {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 80px 32px 100px;
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 60px;
+    align-items: center;
+  }
+  .hero-text h1 {
+    font-size: clamp(36px, 5vw, 56px);
+    line-height: 1.2;
+    font-weight: 600;
+    color: var(--wood-deep);
+    margin-bottom: 24px;
+    letter-spacing: -0.5px;
+  }
+  .hero-text .tagline {
+    font-size: 18px;
+    color: var(--ink-soft);
+    margin-bottom: 36px;
+    line-height: 1.8;
+  }
+  .hero-text .tagline strong {
+    color: var(--wood-dark);
+    font-weight: 600;
+  }
+  .cta-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 24px;
+    border-radius: 28px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.15s, box-shadow 0.2s;
+  }
+  .cta-primary {
+    background: var(--wood-dark);
+    color: white;
+    box-shadow: var(--shadow-sm);
+  }
+  .cta-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+  .cta-secondary {
+    background: var(--paper);
+    color: var(--wood-deep);
+    border: 1px solid var(--border);
+  }
+  .cta-secondary:hover { background: var(--paper-soft); }
+  .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    background: var(--wood-light);
+    color: var(--wood-deep);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Phone mockup */
+  .phone-mockup {
+    position: relative;
+    width: 100%;
+    max-width: 320px;
+    margin: 0 auto;
+    aspect-ratio: 9 / 18;
+    background: linear-gradient(135deg, #2a2620 0%, #3e362a 100%);
+    border-radius: 42px;
+    padding: 12px;
+    box-shadow: 0 30px 60px rgba(94, 70, 32, 0.25), 0 12px 24px rgba(94, 70, 32, 0.15);
+  }
+  .phone-screen {
+    width: 100%;
+    height: 100%;
+    background: var(--cream);
+    border-radius: 32px;
+    overflow: hidden;
+    position: relative;
+    padding: 24px 18px;
+  }
+  .mockup-statusbar {
+    height: 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 6px;
+    font-size: 11px;
+    color: var(--wood-deep);
+    font-weight: 600;
+  }
+  .mockup-title { font-size: 22px; font-weight: 600; color: var(--wood-deep); margin-top: 12px; }
+  .mockup-chapter {
+    margin-top: 14px;
+    padding: 12px;
+    background: white;
+    border-radius: 12px;
+    border-left: 3px solid var(--wood-medium);
+    box-shadow: var(--shadow-sm);
+  }
+  .mockup-chapter-title { font-size: 13px; font-weight: 600; color: var(--wood-deep); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+  .mockup-chapter-summary { font-size: 11px; color: var(--ink-soft); line-height: 1.5; }
+  .mockup-tag {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    color: white;
+    margin-left: 8px;
+  }
+
+  /* Sections */
+  section { padding: 80px 32px; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  .section-title {
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--wood-deep);
+    text-align: center;
+    margin-bottom: 16px;
+    letter-spacing: -0.3px;
+  }
+  .section-subtitle {
+    font-size: 16px;
+    color: var(--ink-soft);
+    text-align: center;
+    margin-bottom: 56px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Concept section */
+  .concept-quote {
+    max-width: 720px;
+    margin: 0 auto;
+    text-align: center;
+    font-size: clamp(20px, 2.4vw, 26px);
+    line-height: 1.8;
+    color: var(--wood-deep);
+    font-weight: 500;
+    padding: 60px 24px;
+    background: var(--paper-soft);
+    border-radius: 24px;
+    border: 1px solid var(--border-soft);
+    position: relative;
+  }
+  .concept-quote::before, .concept-quote::after {
+    content: """;
+    font-size: 80px;
+    color: var(--wood-medium);
+    opacity: 0.3;
+    position: absolute;
+    line-height: 1;
+  }
+  .concept-quote::before { top: 12px; left: 24px; }
+  .concept-quote::after { content: """; bottom: -30px; right: 24px; }
+
+  /* Features grid */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .feature {
+    background: var(--paper-soft);
+    padding: 28px;
+    border-radius: 18px;
+    border: 1px solid var(--border-soft);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .feature:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+  .feature-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 16px;
+  }
+  .feature h3 {
+    font-size: 17px;
+    color: var(--wood-deep);
+    margin-bottom: 8px;
+  }
+  .feature p {
+    font-size: 14px;
+    color: var(--ink-soft);
+    line-height: 1.7;
+  }
+
+  /* Steps */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+    margin-top: 40px;
+  }
+  .step {
+    text-align: center;
+    position: relative;
+  }
+  .step-num {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--wood-dark);
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .step h4 {
+    font-size: 17px;
+    color: var(--wood-deep);
+    margin-bottom: 8px;
+  }
+  .step p {
+    font-size: 14px;
+    color: var(--ink-soft);
+    line-height: 1.7;
+  }
+
+  /* Tech */
+  .tech-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  .tech-tag {
+    padding: 6px 14px;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--wood-deep);
+  }
+
+  /* About */
+  .about {
+    max-width: 760px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .about p {
+    color: var(--ink-soft);
+    font-size: 15px;
+    margin-bottom: 16px;
+    line-height: 1.9;
+  }
+  .about-links {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 32px;
+  }
+
+  /* Footer */
+  footer {
+    padding: 40px 32px;
+    border-top: 1px solid var(--border-soft);
+    text-align: center;
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-top: 60px;
+  }
+  footer a { color: var(--wood-dark); text-decoration: none; }
+
+  /* Responsive */
+  @media (max-width: 800px) {
+    .hero {
+      grid-template-columns: 1fr;
+      padding: 40px 24px 60px;
+      gap: 40px;
+      text-align: center;
+    }
+    .cta-group { justify-content: center; }
+    .steps { grid-template-columns: 1fr; gap: 24px; }
+    section { padding: 60px 24px; }
+    header { padding: 20px 24px; }
+    .nav-links { gap: 16px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">MessageMemory</div>
+  <nav class="nav-links">
+    <a href="#features">機能</a>
+    <a href="#how">使い方</a>
+    <a href="#about">About</a>
+    <a href="https://github.com/ortiz-ai-partners/messagememory" target="_blank">GitHub</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="hero" style="padding-top: 40px;">
+  <div class="hero-text">
+    <span class="badge">🌱 開発中 — App Store 公開予定</span>
+    <h1>大切な人との<br>メッセージを、<br>一冊の本のように。</h1>
+    <p class="tagline">
+      Facebook Messenger の会話を <strong>AI が話題ごとに章立て</strong>。<br>
+      写真もスタンプも、いつでも好きなトピックを開ける思い出の本棚アプリ。
+    </p>
+    <div class="cta-group">
+      <a class="cta cta-primary" href="https://github.com/ortiz-ai-partners/messagememory" target="_blank">
+        GitHub で見る →
+      </a>
+      <a class="cta cta-secondary" href="#features">機能を見る</a>
+    </div>
+  </div>
+
+  <div class="phone-mockup">
+    <div class="phone-screen">
+      <div class="mockup-statusbar">
+        <span>9:41</span>
+        <span>●●●●</span>
+      </div>
+      <div class="mockup-title">会話の記憶</div>
+      <div style="font-size: 11px; color: var(--ink-soft); margin-top: 4px;">8 / 8</div>
+
+      <div class="mockup-chapter">
+        <div class="mockup-chapter-title">
+          はじめての会話
+          <span class="mockup-tag" style="background: var(--accent-rose);">デート</span>
+        </div>
+        <div class="mockup-chapter-summary">運命を感じた最初の夜。「また会いたい」が確信に変わった。</div>
+      </div>
+
+      <div class="mockup-chapter">
+        <div class="mockup-chapter-title">
+          沖縄の海で
+          <span class="mockup-tag" style="background: var(--accent-sage);">旅行</span>
+        </div>
+        <div class="mockup-chapter-summary">ふたりで決めた夏のお出かけ。写真がたくさん残った。</div>
+      </div>
+
+      <div class="mockup-chapter">
+        <div class="mockup-chapter-title">
+          お誕生日のメッセージ ⭐
+          <span class="mockup-tag" style="background: var(--accent-honey);">記念日</span>
+        </div>
+        <div class="mockup-chapter-summary">日付が変わってすぐ。あの一言で泣きそうになった。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top: 40px;">
+  <div class="concept-quote">
+    時系列で流れていく日々の中に、<br>
+    思い出として残しておきたい会話がある。
+  </div>
+</section>
+
+<section id="features">
+  <div class="container">
+    <h2 class="section-title">主な機能</h2>
+    <p class="section-subtitle">分析じゃなく、記録・物語・アルバムとして。</p>
+
+    <div class="features-grid">
+      <div class="feature">
+        <div class="feature-icon" style="background: var(--wood-light); color: var(--wood-deep);">📖</div>
+        <h3>AI章分け</h3>
+        <p>Claude（Anthropic API）が会話を読み、話題ごとに自動で章を作成。情緒的な章タイトルを付けます。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="background: #f4d4d4; color: #8b4646;">🏷️</div>
+        <h3>カテゴリ自動分類</h3>
+        <p>雑談 / デート / 大切な出来事 / 旅行 / 記念日 / 日常 / 相談ごとの8カテゴリにAIが自動で振り分け。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="background: #fce4a8; color: #8b6620;">⭐</div>
+        <h3>2種類のお気に入り</h3>
+        <p>⭐重要な会話 と 💗心の栄養素 を別々に。読み返したい目的に合わせて使い分け。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="background: #d4e4c8; color: #4a6b3a;">📊</div>
+        <h3>会話グラフ</h3>
+        <p>カテゴリ分布を円グラフで可視化。ふたりの会話が何で出来ているかが一目で分かる。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="background: #e4d4f0; color: #6b4a8b;">🖼️</div>
+        <h3>写真・スタンプを保存</h3>
+        <p>ZIPから自動展開して吹き出しに直接表示。テキストだけじゃ伝わらない感情ごと残せます。</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon" style="background: var(--paper); color: var(--wood-deep);">🔒</div>
+        <h3>端末内処理</h3>
+        <p>会話データは端末から出ません。Anthropic API はユーザー自身のキー（BYOK）方式。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how" style="background: linear-gradient(180deg, transparent, var(--paper-soft) 30%, var(--paper-soft) 70%, transparent);">
+  <div class="container">
+    <h2 class="section-title">使い方</h2>
+    <p class="section-subtitle">3ステップで「思い出の本棚」が完成。</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h4>会話をインポート</h4>
+        <p>Facebook の「Download Your Information」で出力したZIPを選び、取り込みたい相手だけを選択。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h4>AIに記憶を分けてもらう</h4>
+        <p>「記憶に分ける」をタップ。Claude Haiku が話題ごとに章を作って、情緒的なタイトルを付ける。</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h4>いつでも開く</h4>
+        <p>カテゴリで絞る、お気に入りで絞る、円グラフで眺める。好きな思い出にすぐ会いに行ける。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container">
+    <h2 class="section-title">技術スタック</h2>
+    <p class="section-subtitle">Windowsで開発、クラウドビルドでiOSへ。</p>
+
+    <div class="tech-list">
+      <span class="tech-tag">React Native</span>
+      <span class="tech-tag">Expo SDK 54</span>
+      <span class="tech-tag">TypeScript</span>
+      <span class="tech-tag">Expo Router</span>
+      <span class="tech-tag">expo-sqlite</span>
+      <span class="tech-tag">Claude Haiku 4.5</span>
+      <span class="tech-tag">Anthropic SDK</span>
+      <span class="tech-tag">react-native-svg</span>
+      <span class="tech-tag">react-native-gesture-handler</span>
+      <span class="tech-tag">JSZip</span>
+      <span class="tech-tag">Zustand</span>
+    </div>
+  </div>
+</section>
+
+<section id="about">
+  <div class="about">
+    <h2 class="section-title">About</h2>
+    <p>
+      MessageMemoryは、「分析」ではなく「記録・物語・アルバム」として<br>
+      大切な人とのやり取りを残したいという気持ちから生まれました。
+    </p>
+    <p>
+      個人開発、App Storeリリース準備中。<br>
+      ソースコードは GitHub で公開しています（All Rights Reserved）。
+    </p>
+    <div class="about-links">
+      <a class="cta cta-primary" href="https://github.com/ortiz-ai-partners/messagememory" target="_blank">
+        GitHub リポジトリ →
+      </a>
+      <a class="cta cta-secondary" href="https://github.com/ortiz-ai-partners/messagememory/blob/main/LICENSE" target="_blank">
+        ライセンス
+      </a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    © 2026 ortiz-ai-partners. All Rights Reserved.
+    &nbsp;·&nbsp;
+    <a href="https://github.com/ortiz-ai-partners/messagememory">GitHub</a>
+  </p>
+</footer>
+
+</body>
+</html>
