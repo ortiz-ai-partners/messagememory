@@ -1,8 +1,11 @@
 // 背景に薄く重ねる木目テクスチャ。
 // react-native-svg で柔らかく波打つ線を複数描画し、タッチは透過させる。
 // 常に画面全体を覆うよう絶対配置される。
+//
+// Web (特にFirefox) では react-native-svg のスタイル設定が CSSStyleDeclaration
+// の indexed setter に当たって死ぬため、Web では何も描画しない。
 
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 // 1タイル（TILE_HEIGHT px）内に描く線の配置。y座標・線幅・不透明度を
@@ -25,6 +28,8 @@ const STROKE = '#8b6f47';
 export function WoodTexture() {
   const { width, height } = useWindowDimensions();
   const tiles = Math.ceil(height / TILE_HEIGHT) + 1;
+
+  if (Platform.OS === 'web') return null;
 
   return (
     <View

@@ -1,6 +1,6 @@
 import { Link, router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, FlatList, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ReanimatedSwipeable, {
   type SwipeableMethods,
@@ -127,6 +127,26 @@ function SwipeableRow({
 }) {
   const swipeRef = useRef<SwipeableMethods>(null);
 
+  // Web では ReanimatedSwipeable がスタイル設定で死ぬのと、スワイプ操作自体が
+  // デスクトップだと自然じゃないので、シンプルな行＋長押しメニューに簡略化する。
+  if (Platform.OS === 'web') {
+    return (
+      <Link href={{ pathname: '/conversation/[id]', params: { id: String(item.id) } }} asChild>
+        <Pressable
+          style={[styles.row, { borderBottomColor: borderColor }]}
+          onLongPress={() => {
+            Alert.alert(item.title, '', [
+              { text: 'キャンセル', style: 'cancel' },
+              { text: item.is_pinned ? 'ピンを外す' : '📌 ピン留め', onPress: () => onPin(item) },
+              { text: '削除', style: 'destructive', onPress: () => onDelete(item) },
+            ]);
+          }}>
+          <RowContents item={item} />
+        </Pressable>
+      </Link>
+    );
+  }
+
   const renderRightActions = () => (
     <View style={styles.actionsRow}>
       <Pressable
@@ -158,16 +178,24 @@ function SwipeableRow({
       overshootRight={false}>
       <Link href={{ pathname: '/conversation/[id]', params: { id: String(item.id) } }} asChild>
         <Pressable style={[styles.row, { borderBottomColor: borderColor }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {item.is_pinned ? <ThemedText style={styles.pinMark}>📌</ThemedText> : null}
-            <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
-          </View>
-          <ThemedText style={styles.sub}>
-            参加者 {item.participant_count} 人 ・ {new Date(item.imported_at).toLocaleDateString('ja-JP')} 取込
-          </ThemedText>
+          <RowContents item={item} />
         </Pressable>
       </Link>
     </ReanimatedSwipeable>
+  );
+}
+
+function RowContents({ item }: { item: ConversationRow }) {
+  return (
+    <>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {item.is_pinned ? <ThemedText style={styles.pinMark}>📌</ThemedText> : null}
+        <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
+      </View>
+      <ThemedText style={styles.sub}>
+        参加者 {item.participant_count} 人 ・ {new Date(item.imported_at).toLocaleDateString('ja-JP')} 取込
+      </ThemedText>
+    </>
   );
 }
 
