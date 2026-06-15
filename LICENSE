@@ -1,0 +1,40 @@
+MessageMemory
+
+Copyright (c) 2026 ortiz-ai-partners. All Rights Reserved.
+
+このソフトウェアおよび関連するすべてのファイル（以下「本ソフトウェア」と
+いう）の著作権は、ortiz-ai-partners（以下「権利者」という）に帰属します。
+
+本ソフトウェアのソースコードは閲覧および学習目的での参照に限り公開され
+ています。次の行為は権利者の事前の書面による許諾なく行うことはできません。
+
+  1. 本ソフトウェアまたはその実質的部分の複製、改変、結合、頒布、再配布、
+     公衆送信（インターネット配信を含む）、転載、または派生作品の作成。
+  2. 本ソフトウェアまたはその実質的部分を組み込んだ製品・サービスの
+     商用利用（販売、サブスクリプション、広告を含む有償提供、App Store
+     等のマーケットプレイスでの公開などを含む）。
+  3. 本ソフトウェアと実質的に類似した機能・体験を提供するアプリの作成・
+     公開を目的とした、本ソフトウェアのコード・デザイン・UI構造の
+     模倣的利用。
+
+個人的かつ非商用の学習目的でローカル環境にクローンし、自分自身の動作確認・
+学習・研究のために試行することは妨げません。ただしその場合でも、上記
+1〜3の行為は禁じられます。
+
+本ソフトウェアは現状有姿（AS IS）で提供されます。明示・黙示を問わず、
+商品性、特定目的への適合性、第三者の権利を侵害しないことの保証を含む、
+いかなる保証も行いません。本ソフトウェアの使用または使用不能から生じた
+損害について、権利者は一切責任を負いません。
+
+英語の参考訳（参考のため。法的な拘束力は日本語原文に基づきます）:
+
+  All Rights Reserved. This software is published for viewing and
+  educational reference only. Reproduction, modification, distribution,
+  redistribution, public transmission, derivative works, commercial use
+  (including App Store and other marketplaces), or substantially similar
+  copies are prohibited without prior written permission from the
+  copyright holder. Personal, non-commercial trial use on a local machine
+  is permitted. THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF
+  ANY KIND.
+
+問い合わせ・利用許諾の相談はリポジトリの Issue または所定の連絡先まで。

@@ -1,0 +1,618 @@
+import { Image } from 'expo-image';
+import { Link, Stack, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, SectionList, StyleSheet, View, ScrollView } from 'react-native';
+
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { WoodTexture } from '@/components/wood-texture';
+import { CategoryColors } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { SEGMENTER_MODEL, segmentConversation } from '@/src/ai/segmenter';
+import { CATEGORIES } from '@/src/ai/prompts';
+import { openDb } from '@/src/db';
+import {
+  getConversation,
+  getMessagesWithMedia,
+  listChapters,
+  replaceChapters,
+  setChapterFavorite,
+  setChapterHeart,
+  type ChapterRow,
+  type ConversationRow,
+  type MessageWithMedia,
+} from '@/src/db/queries';
+import { loadApiKey } from '@/src/secrets/apiKeyStore';
+
+type Section = { title: string; data: MessageWithMedia[] };
+
+function formatDate(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatTime(ms: number): string {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function groupByDate(messages: MessageWithMedia[]): Section[] {
+  const sections: Section[] = [];
+  let currentDate = '';
+  for (const m of messages) {
+    const date = formatDate(m.timestamp_ms);
+    if (date !== currentDate) {
+      sections.push({ title: date, data: [] });
+      currentDate = date;
+    }
+    sections[sections.length - 1].data.push(m);
+  }
+  return sections;
+}
+
+type FilterMode = 'all' | 'important' | 'heart';
+
+export default function ConversationDetailScreen() {
+  const theme = useTheme();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const conversationId = Number(id);
+
+  const [conversation, setConversation] = useState<ConversationRow | null>(null);
+  const [messages, setMessages] = useState<MessageWithMedia[]>([]);
+  const [chapters, setChapters] = useState<ChapterRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [segmenting, setSegmenting] = useState(false);
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!Number.isFinite(conversationId)) return;
+    const db = await openDb();
+    const [conv, msgs, chs] = await Promise.all([
+      getConversation(db, conversationId),
+      getMessagesWithMedia(db, conversationId),
+      listChapters(db, conversationId),
+    ]);
+    setConversation(conv);
+    setMessages(msgs);
+    setChapters(chs);
+    setLoading(false);
+  }, [conversationId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleToggleImportant(chapter: ChapterRow) {
+    const next = chapter.is_favorite === 1 ? 0 : 1;
+    setChapters(prev => prev.map(c => (c.id === chapter.id ? { ...c, is_favorite: next } : c)));
+    const db = await openDb();
+    await setChapterFavorite(db, chapter.id, next === 1);
+  }
+
+  async function handleToggleHeart(chapter: ChapterRow) {
+    const next = chapter.is_heart === 1 ? 0 : 1;
+    setChapters(prev => prev.map(c => (c.id === chapter.id ? { ...c, is_heart: next } : c)));
+    const db = await openDb();
+    await setChapterHeart(db, chapter.id, next === 1);
+  }
+
+  async function handleSegment() {
+    if (segmenting) return;
+    const apiKey = await loadApiKey();
+    if (!apiKey) {
+      Alert.alert('APIキー未設定', '設定画面で Anthropic API キーを登録してください。');
+      return;
+    }
+    if (messages.length === 0) {
+      Alert.alert('メッセージが空です');
+      return;
+    }
+
+    setSegmenting(true);
+    try {
+      const result = await segmentConversation(apiKey, messages);
+      if (result.length === 0) {
+        Alert.alert('章を生成できませんでした', 'メッセージが少なすぎる可能性があります。');
+        return;
+      }
+      const db = await openDb();
+      await replaceChapters(db, conversationId, result, SEGMENTER_MODEL);
+      await load();
+      Alert.alert('完了', `${result.length} 章に分類しました`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert('エラー', msg);
+    } finally {
+      setSegmenting(false);
+    }
+  }
+
+  const filteredChapters = useMemo(() => {
+    let list = chapters;
+    if (filterMode === 'important') list = list.filter(c => c.is_favorite === 1);
+    if (filterMode === 'heart') list = list.filter(c => c.is_heart === 1);
+    if (selectedCategory) list = list.filter(c => c.category === selectedCategory);
+    return list;
+  }, [chapters, filterMode, selectedCategory]);
+
+  const hasChapters = chapters.length > 0;
+
+  return (
+    <ThemedView style={styles.container}>
+      <WoodTexture />
+      <Stack.Screen
+        options={{
+          title: conversation?.title ?? '会話',
+          headerRight: () =>
+            segmenting ? (
+              <ActivityIndicator style={{ marginRight: 12 }} />
+            ) : (
+              <Pressable onPress={handleSegment} hitSlop={8} style={{ marginRight: 12 }}>
+                <ThemedText type="defaultSemiBold" style={{ color: theme.tint }}>
+                  {hasChapters ? '再分類' : '記憶に分ける'}
+                </ThemedText>
+              </Pressable>
+            ),
+        }}
+      />
+
+      {loading ? (
+        <ThemedText style={styles.placeholder}>読み込み中...</ThemedText>
+      ) : messages.length === 0 ? (
+        <ThemedText style={styles.placeholder}>メッセージがありません</ThemedText>
+      ) : hasChapters ? (
+        <ChapterListView
+          theme={theme}
+          conversationId={conversationId}
+          chapters={filteredChapters}
+          allChapters={chapters}
+          filterMode={filterMode}
+          onChangeFilterMode={setFilterMode}
+          selectedCategory={selectedCategory}
+          onSelectCategory={setSelectedCategory}
+          onToggleImportant={handleToggleImportant}
+          onToggleHeart={handleToggleHeart}
+        />
+      ) : (
+        <TimelineView messages={messages} theme={theme} />
+      )}
+    </ThemedView>
+  );
+}
+
+type Theme = ReturnType<typeof useTheme>;
+
+// ============== 章一覧（分類後の通常ビュー）==============
+
+function ChapterListView({
+  theme,
+  conversationId,
+  chapters,
+  allChapters,
+  filterMode,
+  onChangeFilterMode,
+  selectedCategory,
+  onSelectCategory,
+  onToggleImportant,
+  onToggleHeart,
+}: {
+  theme: Theme;
+  conversationId: number;
+  chapters: ChapterRow[];
+  allChapters: ChapterRow[];
+  filterMode: FilterMode;
+  onChangeFilterMode: (m: FilterMode) => void;
+  selectedCategory: string | null;
+  onSelectCategory: (c: string | null) => void;
+  onToggleImportant: (c: ChapterRow) => void;
+  onToggleHeart: (c: ChapterRow) => void;
+}) {
+  // 会話に実際に存在するカテゴリだけ表示する
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const ch of allChapters) if (ch.category) set.add(ch.category);
+    return CATEGORIES.filter(c => set.has(c));
+  }, [allChapters]);
+
+  const importantCount = allChapters.filter(c => c.is_favorite === 1).length;
+  const heartCount = allChapters.filter(c => c.is_heart === 1).length;
+
+  return (
+    <ScrollView contentContainerStyle={styles.listPad}>
+      <View style={styles.summaryRow}>
+        <ThemedText type="subtitle">
+          会話の記憶 {chapters.length}/{allChapters.length}
+        </ThemedText>
+        <Link
+          href={{ pathname: '/stats/[id]', params: { id: String(conversationId) } }}
+          asChild>
+          <Pressable
+            style={[styles.graphButton, { backgroundColor: theme.surface, borderColor: theme.tint }]}
+            hitSlop={6}>
+            <ThemedText style={[styles.graphButtonText, { color: theme.tint }]}>📊 会話グラフ</ThemedText>
+          </Pressable>
+        </Link>
+      </View>
+
+      <View style={styles.filterRow}>
+        <FilterChip
+          theme={theme}
+          active={filterMode === 'all'}
+          label="すべて"
+          onPress={() => onChangeFilterMode('all')}
+        />
+        <FilterChip
+          theme={theme}
+          active={filterMode === 'important'}
+          label={`⭐ 重要 (${importantCount})`}
+          onPress={() => onChangeFilterMode(filterMode === 'important' ? 'all' : 'important')}
+        />
+        <FilterChip
+          theme={theme}
+          active={filterMode === 'heart'}
+          label={`💗 栄養素 (${heartCount})`}
+          onPress={() => onChangeFilterMode(filterMode === 'heart' ? 'all' : 'heart')}
+        />
+      </View>
+
+      {availableCategories.length > 1 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.catRow}>
+          <FilterChip
+            theme={theme}
+            active={selectedCategory === null}
+            label="全カテゴリ"
+            onPress={() => onSelectCategory(null)}
+          />
+          {availableCategories.map(cat => (
+            <FilterChip
+              key={cat}
+              theme={theme}
+              active={selectedCategory === cat}
+              label={cat}
+              color={CategoryColors[cat]}
+              onPress={() => onSelectCategory(selectedCategory === cat ? null : cat)}
+            />
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {chapters.length === 0 ? (
+        <ThemedText style={styles.emptyFiltered}>
+          該当するトピックがありません
+        </ThemedText>
+      ) : (
+        chapters.map(ch => (
+          <View key={ch.id} style={styles.chapterCardRow}>
+            <Link
+              href={{ pathname: '/chapter/[id]', params: { id: String(ch.id) } }}
+              asChild>
+              <Pressable
+                style={[
+                  styles.chapterCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.borderSoft,
+                    borderLeftColor: theme.accent,
+                  },
+                ]}>
+                <View style={styles.chapterCardTop}>
+                  <ThemedText type="defaultSemiBold" style={styles.chapterTitle}>
+                    {ch.title}
+                  </ThemedText>
+                  {ch.category ? (
+                    <View style={[styles.badge, { backgroundColor: CategoryColors[ch.category] ?? '#b5ac95' }]}>
+                      <ThemedText style={styles.badgeText}>{ch.category}</ThemedText>
+                    </View>
+                  ) : null}
+                </View>
+                {ch.summary ? (
+                  <ThemedText style={[styles.chapterSummary, { color: theme.textMuted }]} numberOfLines={2}>
+                    {ch.summary}
+                  </ThemedText>
+                ) : null}
+              </Pressable>
+            </Link>
+            <View style={styles.favColumn}>
+              <Pressable onPress={() => onToggleImportant(ch)} hitSlop={6} style={styles.favButton}>
+                <ThemedText style={styles.favIcon}>{ch.is_favorite ? '⭐' : '☆'}</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => onToggleHeart(ch)} hitSlop={6} style={styles.favButton}>
+                <ThemedText style={styles.favIcon}>{ch.is_heart ? '💗' : '♡'}</ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        ))
+      )}
+    </ScrollView>
+  );
+}
+
+function FilterChip({
+  theme,
+  active,
+  label,
+  color,
+  onPress,
+}: {
+  theme: Theme;
+  active: boolean;
+  label: string;
+  color?: string;
+  onPress: () => void;
+}) {
+  const activeBg = color ?? theme.tint;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.filterChip,
+        { borderColor: theme.border },
+        active && { backgroundColor: activeBg, borderColor: activeBg },
+      ]}>
+      <ThemedText
+        style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+        {label}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
+// ============== タイムライン（分類前の初期ビュー）==============
+
+function TimelineView({ messages, theme }: { messages: MessageWithMedia[]; theme: Theme }) {
+  // TimelineView は messages: MessageWithMedia[] を受け取る（変更済み）
+  const sections = useMemo(() => groupByDate(messages), [messages]);
+  const myName = messages[0]?.sender_name ?? '';
+
+  return (
+    <SectionList
+      sections={sections}
+      keyExtractor={m => String(m.id)}
+      ListHeaderComponent={
+        <View style={[styles.ctaBox, { backgroundColor: theme.surface }]}>
+          <ThemedText style={styles.ctaText}>
+            ヘッダーの「記憶に分ける」ボタンを押すと、AIが話題ごとに記憶として整理します。
+          </ThemedText>
+        </View>
+      }
+      renderSectionHeader={({ section }) => (
+        <View style={[styles.dateHeader, { backgroundColor: theme.surfaceAlt }]}>
+          <ThemedText type="defaultSemiBold" style={styles.dateHeaderText}>
+            {section.title}
+          </ThemedText>
+        </View>
+      )}
+      renderItem={({ item }) => <MessageBubble theme={theme} message={item} isOwn={item.sender_name !== myName} />}
+      stickySectionHeadersEnabled
+    />
+  );
+}
+
+function MessageBubble({ theme, message, isOwn }: { theme: Theme; message: MessageWithMedia; isOwn: boolean }) {
+  return (
+    <View style={[styles.row, isOwn ? styles.rowOwn : styles.rowOther]}>
+      <Bubble theme={theme} message={message} isOwn={isOwn} />
+    </View>
+  );
+}
+
+export function Bubble({
+  theme,
+  message,
+  isOwn,
+}: {
+  theme: Theme;
+  message: MessageWithMedia;
+  isOwn: boolean;
+}) {
+  const stickers = message.media.filter(m => m.kind === 'sticker');
+  const photos = message.media.filter(m => m.kind === 'photo' || m.kind === 'gif');
+  const videos = message.media.filter(m => m.kind === 'video');
+  const hasMediaAttached = stickers.length + photos.length + videos.length > 0;
+
+  // スタンプのみ＆本文なしの場合は、バブルを省略して大きめに表示
+  const stickerOnly = stickers.length > 0 && !message.body && photos.length === 0 && videos.length === 0;
+
+  if (stickerOnly) {
+    return (
+      <View>
+        {!isOwn && (
+          <ThemedText style={[styles.senderOutside, { color: theme.senderLabel }]}>
+            {message.sender_name}
+          </ThemedText>
+        )}
+        {stickers.map((s, i) => (
+          <Image
+            key={i}
+            source={{ uri: localUri(s.local_path) }}
+            style={styles.sticker}
+            contentFit="contain"
+          />
+        ))}
+        <ThemedText style={[styles.time, { color: theme.textMuted, textAlign: isOwn ? 'right' : 'left' }]}>
+          {formatTime(message.timestamp_ms)}
+        </ThemedText>
+      </View>
+    );
+  }
+
+  // テキストがなく、画像のみのときはバブル背景なしで画像だけ表示
+  const photoOnly = photos.length > 0 && !message.body && stickers.length === 0;
+  if (photoOnly) {
+    return (
+      <View>
+        {!isOwn && (
+          <ThemedText style={[styles.senderOutside, { color: theme.senderLabel }]}>
+            {message.sender_name}
+          </ThemedText>
+        )}
+        <View style={styles.photoGrid}>
+          {photos.map((p, i) => (
+            <Image
+              key={i}
+              source={{ uri: localUri(p.local_path) }}
+              style={styles.photo}
+              contentFit="cover"
+            />
+          ))}
+        </View>
+        <ThemedText style={[styles.time, { color: theme.textMuted, textAlign: isOwn ? 'right' : 'left' }]}>
+          {formatTime(message.timestamp_ms)}
+        </ThemedText>
+      </View>
+    );
+  }
+
+  // 通常のテキスト/混在バブル
+  const fallback =
+    !message.body && !hasMediaAttached
+      ? message.type === 'photo' ? '[写真]'
+      : message.type === 'sticker' ? '[スタンプ]'
+      : message.type === 'gif' ? '[GIF]'
+      : message.type === 'video' ? '[動画]'
+      : message.type === 'share' ? '[シェア]'
+      : ''
+      : '';
+  const body = message.body ?? fallback;
+
+  return (
+    <View
+      style={[
+        styles.bubble,
+        { backgroundColor: isOwn ? theme.bubbleOwn : theme.bubbleOther },
+        isOwn ? styles.bubbleOwnCorner : styles.bubbleOtherCorner,
+      ]}>
+      {!isOwn && (
+        <ThemedText style={[styles.sender, { color: theme.senderLabel }]}>
+          {message.sender_name}
+        </ThemedText>
+      )}
+      {photos.length > 0 && (
+        <View style={[styles.photoGrid, { marginBottom: body ? 6 : 0 }]}>
+          {photos.map((p, i) => (
+            <Image
+              key={i}
+              source={{ uri: localUri(p.local_path) }}
+              style={styles.photo}
+              contentFit="cover"
+            />
+          ))}
+        </View>
+      )}
+      {body ? (
+        <ThemedText style={{ color: isOwn ? theme.bubbleOwnText : theme.bubbleOtherText }}>
+          {body}
+        </ThemedText>
+      ) : null}
+      <ThemedText style={[styles.time, { color: isOwn ? '#fffb' : theme.textMuted }]}>
+        {formatTime(message.timestamp_ms)}
+      </ThemedText>
+    </View>
+  );
+}
+
+// expo-file-system から来るパスは / で始まる絶対パス。expo-image は file:// が必要。
+function localUri(localPath: string): string {
+  if (localPath.startsWith('file://')) return localPath;
+  if (localPath.startsWith('/')) return 'file://' + localPath;
+  return localPath;
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  placeholder: { opacity: 0.6, textAlign: 'center', marginTop: 40 },
+
+  listPad: { padding: 12 },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  graphButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  graphButtonText: { fontSize: 13 },
+  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  catRow: { gap: 8, paddingBottom: 10 },
+
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  filterChipText: { fontSize: 12 },
+  filterChipTextActive: { color: '#fff' },
+  emptyFiltered: { opacity: 0.6, textAlign: 'center', padding: 24 },
+
+  chapterCardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 4,
+  },
+  chapterCard: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  chapterCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chapterTitle: { fontSize: 15, flex: 1 },
+  chapterSummary: { fontSize: 12, opacity: 0.7, marginTop: 4 },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  badgeText: { fontSize: 10, color: '#fff' },
+
+  favColumn: { alignItems: 'center', justifyContent: 'center' },
+  favButton: { paddingHorizontal: 6, paddingVertical: 2 },
+  favIcon: { fontSize: 20 },
+
+  ctaBox: {
+    margin: 12,
+    padding: 14,
+    borderRadius: 12,
+  },
+  ctaText: { fontSize: 13, opacity: 0.85, lineHeight: 20 },
+
+  dateHeader: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  dateHeaderText: { fontSize: 12, opacity: 0.75 },
+  row: { paddingHorizontal: 12, paddingVertical: 3 },
+  rowOwn: { alignItems: 'flex-end' },
+  rowOther: { alignItems: 'flex-start' },
+  bubble: {
+    maxWidth: '80%',
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    borderRadius: 18,
+  },
+  bubbleOwnCorner: { borderBottomRightRadius: 4 },
+  bubbleOtherCorner: { borderBottomLeftRadius: 4 },
+  sender: { fontSize: 11, marginBottom: 2 },
+  senderOutside: { fontSize: 11, marginBottom: 4, paddingHorizontal: 4 },
+  time: { fontSize: 10, marginTop: 4, textAlign: 'right' },
+  sticker: { width: 110, height: 110, marginTop: 2 },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  photo: { width: 210, height: 210, borderRadius: 10 },
+});
