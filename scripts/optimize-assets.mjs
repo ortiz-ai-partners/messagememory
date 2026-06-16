@@ -46,4 +46,9 @@ await optimize('assets/images/marketing/hero.png', 'assets/images/marketing/hero
   quality: 80,
 });
 
+await optimize('assets/images/wood-texture.png', 'assets/images/wood-texture.png', {
+  palette: true,
+  quality: 80,
+});
+
 console.log('\n✓ Done');

@@ -65,4 +65,15 @@ export const MIGRATIONS: string[] = [
   `
     ALTER TABLE conversations ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0;
   `,
+
+  // v5: 会話ごとのAI感想（カテゴリ分布画面で表示するためのキャッシュ）
+  `
+    ALTER TABLE conversations ADD COLUMN ai_commentary TEXT;
+    ALTER TABLE conversations ADD COLUMN ai_commentary_at INTEGER;
+  `,
+
+  // v6: 本棚に並ぶ各本の「背表紙の色」。null の場合はテーマのデフォルト色を使う。
+  `
+    ALTER TABLE conversations ADD COLUMN color TEXT;
+  `,
 ];

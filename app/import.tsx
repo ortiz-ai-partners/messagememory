@@ -177,6 +177,9 @@ export default function ImportScreen() {
             <ThemedText type="defaultSemiBold">.zip ファイル</ThemedText>
             か、展開済みの <ThemedText type="defaultSemiBold">message_*.json</ThemedText> を選んでください。
           </ThemedText>
+          <ThemedText style={[styles.notice, { color: theme.textMuted, backgroundColor: theme.surface, borderColor: theme.borderSoft }]}>
+            📚 取り込むと本棚に「新しい1冊」として追加されます。既存の会話には統合されません。
+          </ThemedText>
 
           <View style={styles.buttonArea}>
             <Pressable
@@ -274,6 +277,14 @@ function ConversationPickerView({
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, paddingTop: 24 },
   description: { marginTop: 12, lineHeight: 20 },
+  notice: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    fontSize: 12,
+    lineHeight: 18,
+  },
 
   buttonArea: { marginTop: 28, alignItems: 'stretch' },
   pickButton: {

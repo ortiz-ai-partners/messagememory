@@ -6,6 +6,7 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
+import { ColorPickerModal } from '@/components/color-picker-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { WoodTexture } from '@/components/wood-texture';
@@ -14,7 +15,9 @@ import { openDb } from '@/src/db';
 import {
   deleteConversation,
   listConversations,
+  setConversationColor,
   setConversationPinned,
+  setConversationTitle,
   type ConversationRow,
 } from '@/src/db/queries';
 import { isOnboarded } from '@/src/secrets/preferences';
@@ -23,6 +26,7 @@ export default function ConversationsScreen() {
   const theme = useTheme();
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [colorPickerFor, setColorPickerFor] = useState<ConversationRow | null>(null);
 
   const reload = useCallback(async () => {
     if (!(await isOnboarded())) {
@@ -66,12 +70,55 @@ export default function ConversationsScreen() {
     ]);
   }
 
+  function handleOpenMenu(item: ConversationRow) {
+    Alert.alert(item.title, '', [
+      { text: 'キャンセル', style: 'cancel' },
+      { text: '✎ 名前を変更', onPress: () => handleRename(item) },
+      { text: '🎨 背表紙の色', onPress: () => setColorPickerFor(item) },
+      { text: item.is_pinned ? '📌 ピンを外す' : '📌 ピン留め', onPress: () => handleTogglePin(item) },
+      { text: '削除', style: 'destructive', onPress: () => handleDelete(item) },
+    ]);
+  }
+
+  async function handlePickColor(color: string | null) {
+    if (!colorPickerFor) return;
+    const id = colorPickerFor.id;
+    setConversations(prev => prev.map(c => (c.id === id ? { ...c, color } : c)));
+    const db = await openDb();
+    await setConversationColor(db, id, color);
+  }
+
+  function handleRename(item: ConversationRow) {
+    // iOS の Alert.prompt は単体メソッドとして提供される
+    Alert.prompt(
+      'タイトルを変更',
+      'この本に付ける名前を入力してください',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: '保存',
+          onPress: async (next?: string) => {
+            const trimmed = (next ?? '').trim();
+            if (!trimmed || trimmed === item.title) return;
+            setConversations(prev =>
+              prev.map(c => (c.id === item.id ? { ...c, title: trimmed } : c)),
+            );
+            const db = await openDb();
+            await setConversationTitle(db, item.id, trimmed);
+          },
+        },
+      ],
+      'plain-text',
+      item.title,
+    );
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemedView style={styles.container}>
         <WoodTexture />
         <View style={styles.header}>
-          <ThemedText type="title">会話</ThemedText>
+          <ThemedText type="title">本棚</ThemedText>
           <Link href="/import" asChild>
             <Pressable style={[styles.importButton, { backgroundColor: theme.tint }]}>
               <ThemedText type="defaultSemiBold" style={styles.importButtonText}>
@@ -98,14 +145,25 @@ export default function ConversationsScreen() {
                 item={item}
                 onPin={handleTogglePin}
                 onDelete={handleDelete}
+                onRename={handleRename}
+                onOpenMenu={handleOpenMenu}
+                defaultColor={theme.accent}
                 pinColor={theme.pin}
                 dangerColor={theme.danger}
                 borderColor={theme.borderSoft}
+                renameColor={theme.tint}
               />
             )}
           />
         )}
       </ThemedView>
+
+      <ColorPickerModal
+        visible={!!colorPickerFor}
+        current={colorPickerFor?.color ?? null}
+        onClose={() => setColorPickerFor(null)}
+        onPick={handlePickColor}
+      />
     </GestureHandlerRootView>
   );
 }
@@ -114,41 +172,59 @@ function SwipeableRow({
   item,
   onPin,
   onDelete,
+  onRename,
+  onOpenMenu,
+  defaultColor,
   pinColor,
   dangerColor,
   borderColor,
+  renameColor,
 }: {
   item: ConversationRow;
   onPin: (c: ConversationRow) => void;
   onDelete: (c: ConversationRow) => void;
+  onRename: (c: ConversationRow) => void;
+  onOpenMenu: (c: ConversationRow) => void;
+  defaultColor: string;
   pinColor: string;
   dangerColor: string;
   borderColor: string;
+  renameColor: string;
 }) {
   const swipeRef = useRef<SwipeableMethods>(null);
 
+  const spineColor = item.color ?? defaultColor;
+
   // Web では ReanimatedSwipeable がスタイル設定で死ぬのと、スワイプ操作自体が
-  // デスクトップだと自然じゃないので、シンプルな行＋長押しメニューに簡略化する。
+  // デスクトップだと自然じゃないので、シンプルな行＋右端メニューにする。
   if (Platform.OS === 'web') {
     return (
-      <Link href={{ pathname: '/conversation/[id]', params: { id: String(item.id) } }} asChild>
+      <View style={styles.rowWrap}>
+        <Link href={{ pathname: '/conversation/[id]', params: { id: String(item.id) } }} asChild>
+          <Pressable style={styles.rowMain} onLongPress={() => onOpenMenu(item)}>
+            <RowContents item={item} />
+          </Pressable>
+        </Link>
         <Pressable
-          style={[styles.row, { borderBottomColor: borderColor }]}
-          onLongPress={() => {
-            Alert.alert(item.title, '', [
-              { text: 'キャンセル', style: 'cancel' },
-              { text: item.is_pinned ? 'ピンを外す' : '📌 ピン留め', onPress: () => onPin(item) },
-              { text: '削除', style: 'destructive', onPress: () => onDelete(item) },
-            ]);
-          }}>
-          <RowContents item={item} />
+          style={[styles.spineTab, { backgroundColor: spineColor }]}
+          onPress={() => onOpenMenu(item)}
+          hitSlop={6}>
+          <ThemedText style={styles.spineDots}>⋮</ThemedText>
         </Pressable>
-      </Link>
+      </View>
     );
   }
 
   const renderRightActions = () => (
     <View style={styles.actionsRow}>
+      <Pressable
+        style={[styles.action, { backgroundColor: renameColor }]}
+        onPress={() => {
+          swipeRef.current?.close();
+          onRename(item);
+        }}>
+        <ThemedText style={styles.actionText}>名前</ThemedText>
+      </Pressable>
       <Pressable
         style={[styles.action, { backgroundColor: pinColor }]}
         onPress={() => {
@@ -176,11 +252,19 @@ function SwipeableRow({
       renderRightActions={renderRightActions}
       rightThreshold={40}
       overshootRight={false}>
-      <Link href={{ pathname: '/conversation/[id]', params: { id: String(item.id) } }} asChild>
-        <Pressable style={[styles.row, { borderBottomColor: borderColor }]}>
-          <RowContents item={item} />
+      <View style={styles.rowWrap}>
+        <Link href={{ pathname: '/conversation/[id]', params: { id: String(item.id) } }} asChild>
+          <Pressable style={styles.rowMain}>
+            <RowContents item={item} />
+          </Pressable>
+        </Link>
+        <Pressable
+          style={[styles.spineTab, { backgroundColor: spineColor }]}
+          onPress={() => onOpenMenu(item)}
+          hitSlop={8}>
+          <ThemedText style={styles.spineDots}>⋮</ThemedText>
         </Pressable>
-      </Link>
+      </View>
     </ReanimatedSwipeable>
   );
 }
@@ -225,6 +309,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  rowWrap: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: 'rgba(255, 255, 255, 0.30)',
+    borderRadius: 12,
+    marginVertical: 5,
+    overflow: 'hidden',
+  },
+  rowMain: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+  },
+  spineTab: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spineDots: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+  },
   pinMark: { fontSize: 14 },
   sub: { fontSize: 13, opacity: 0.6, marginTop: 4 },
 
@@ -233,7 +340,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
   },
   action: {
-    width: 72,
+    width: 64,
     justifyContent: 'center',
     alignItems: 'center',
   },

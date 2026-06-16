@@ -59,13 +59,14 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={WoodNavTheme}>
-      <Stack>
+      <Stack screenOptions={{ headerBackTitle: '戻る' }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="import" options={{ title: 'インポート', presentation: 'modal' }} />
-        <Stack.Screen name="conversation/[id]" options={{ title: '会話' }} />
+        <Stack.Screen name="conversation/[id]" options={{ title: '会話', headerBackTitle: '本棚' }} />
         <Stack.Screen name="chapter/[id]" options={{ title: 'トピック' }} />
         <Stack.Screen name="stats/[id]" options={{ title: 'カテゴリ分布' }} />
+        <Stack.Screen name="help" options={{ title: '使い方' }} />
       </Stack>
       <StatusBar style="dark" />
     </ThemeProvider>

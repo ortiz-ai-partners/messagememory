@@ -9,6 +9,9 @@ export type ConversationRow = {
   participant_count: number;
   imported_at: number;
   is_pinned: number; // 0 or 1
+  ai_commentary: string | null;
+  ai_commentary_at: number | null;
+  color: string | null; // 本棚での背表紙色（null = デフォルト）
 };
 
 export type MessageRow = {
@@ -69,7 +72,7 @@ export async function importConversation(
   return { conversationId, messageCount: parsed.messages.length };
 }
 
-const CONVERSATION_COLS = 'id, title, participant_count, imported_at, is_pinned';
+const CONVERSATION_COLS = 'id, title, participant_count, imported_at, is_pinned, ai_commentary, ai_commentary_at, color';
 
 export async function listConversations(db: SQLite.SQLiteDatabase): Promise<ConversationRow[]> {
   return db.getAllAsync<ConversationRow>(
@@ -94,6 +97,53 @@ export async function setConversationPinned(
   pinned: boolean,
 ): Promise<void> {
   await db.runAsync('UPDATE conversations SET is_pinned = ? WHERE id = ?', [pinned ? 1 : 0, id]);
+}
+
+export async function setConversationTitle(
+  db: SQLite.SQLiteDatabase,
+  id: number,
+  title: string,
+): Promise<void> {
+  await db.runAsync('UPDATE conversations SET title = ? WHERE id = ?', [title, id]);
+}
+
+export async function setConversationColor(
+  db: SQLite.SQLiteDatabase,
+  id: number,
+  color: string | null,
+): Promise<void> {
+  await db.runAsync('UPDATE conversations SET color = ? WHERE id = ?', [color, id]);
+}
+
+export async function setConversationCommentary(
+  db: SQLite.SQLiteDatabase,
+  id: number,
+  text: string,
+): Promise<void> {
+  await db.runAsync(
+    'UPDATE conversations SET ai_commentary = ?, ai_commentary_at = ? WHERE id = ?',
+    [text, Date.now(), id],
+  );
+}
+
+export async function getConversationDateRange(
+  db: SQLite.SQLiteDatabase,
+  conversationId: number,
+): Promise<{ start: number; end: number; count: number } | null> {
+  const row = await db.getFirstAsync<{ start: number | null; end: number | null; count: number }>(
+    'SELECT MIN(timestamp_ms) AS start, MAX(timestamp_ms) AS end, COUNT(*) AS count FROM messages WHERE conversation_id = ?',
+    [conversationId],
+  );
+  if (!row || row.start == null || row.end == null) return null;
+  return { start: row.start, end: row.end, count: row.count };
+}
+
+/** すべての会話と関連データを削除する。設定画面から呼び出される。 */
+export async function deleteAllConversations(db: SQLite.SQLiteDatabase): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    // 外部キー制約のCASCADEで参加者・メッセージ・メディア・章は連動削除されるはず
+    await db.runAsync('DELETE FROM conversations');
+  });
 }
 
 export async function getMessages(

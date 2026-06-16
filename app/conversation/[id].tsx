@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Link, Stack, useLocalSearchParams } from 'expo-router';
+import { Link, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, SectionList, StyleSheet, View, ScrollView } from 'react-native';
 
@@ -51,10 +51,11 @@ function groupByDate(messages: MessageWithMedia[]): Section[] {
 }
 
 type FilterMode = 'all' | 'important' | 'heart';
+type ViewMode = 'chapters' | 'dates';
 
 export default function ConversationDetailScreen() {
   const theme = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, category } = useLocalSearchParams<{ id: string; category?: string }>();
   const conversationId = Number(id);
 
   const [conversation, setConversation] = useState<ConversationRow | null>(null);
@@ -63,7 +64,13 @@ export default function ConversationDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [segmenting, setSegmenting] = useState(false);
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(category ?? null);
+  const [viewMode, setViewMode] = useState<ViewMode>('chapters');
+
+  // 円グラフから「category=デート」のような形で飛んでくると初期選択する
+  useEffect(() => {
+    if (category) setSelectedCategory(category);
+  }, [category]);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(conversationId)) return;
@@ -79,9 +86,10 @@ export default function ConversationDetailScreen() {
     setLoading(false);
   }, [conversationId]);
 
-  useEffect(() => {
+  // 章詳細から戻ってきた時にも反映されるよう、フォーカスのたびに読み直す
+  useFocusEffect(useCallback(() => {
     load();
-  }, [load]);
+  }, [load]));
 
   async function handleToggleImportant(chapter: ChapterRow) {
     const next = chapter.is_favorite === 1 ? 0 : 1;
@@ -161,7 +169,7 @@ export default function ConversationDetailScreen() {
         <ThemedText style={styles.placeholder}>読み込み中...</ThemedText>
       ) : messages.length === 0 ? (
         <ThemedText style={styles.placeholder}>メッセージがありません</ThemedText>
-      ) : hasChapters ? (
+      ) : hasChapters && viewMode === 'chapters' ? (
         <ChapterListView
           theme={theme}
           conversationId={conversationId}
@@ -173,6 +181,16 @@ export default function ConversationDetailScreen() {
           onSelectCategory={setSelectedCategory}
           onToggleImportant={handleToggleImportant}
           onToggleHeart={handleToggleHeart}
+          viewMode={viewMode}
+          onChangeViewMode={setViewMode}
+        />
+      ) : hasChapters ? (
+        <TimelineView
+          messages={messages}
+          theme={theme}
+          showViewToggle
+          viewMode={viewMode}
+          onChangeViewMode={setViewMode}
         />
       ) : (
         <TimelineView messages={messages} theme={theme} />
@@ -196,6 +214,8 @@ function ChapterListView({
   onSelectCategory,
   onToggleImportant,
   onToggleHeart,
+  viewMode,
+  onChangeViewMode,
 }: {
   theme: Theme;
   conversationId: number;
@@ -207,6 +227,8 @@ function ChapterListView({
   onSelectCategory: (c: string | null) => void;
   onToggleImportant: (c: ChapterRow) => void;
   onToggleHeart: (c: ChapterRow) => void;
+  viewMode: ViewMode;
+  onChangeViewMode: (m: ViewMode) => void;
 }) {
   // 会話に実際に存在するカテゴリだけ表示する
   const availableCategories = useMemo(() => {
@@ -234,6 +256,8 @@ function ChapterListView({
           </Pressable>
         </Link>
       </View>
+
+      <ViewModeToggle theme={theme} value={viewMode} onChange={onChangeViewMode} />
 
       <View style={styles.filterRow}>
         <FilterChip
@@ -285,8 +309,9 @@ function ChapterListView({
           該当するトピックがありません
         </ThemedText>
       ) : (
-        chapters.map(ch => (
-          <View key={ch.id} style={styles.chapterCardRow}>
+        chapters.map((ch, i) => (
+          <View key={ch.id}>
+            {i > 0 ? <View style={styles.chapterSeparator} /> : null}
             <Link
               href={{ pathname: '/chapter/[id]', params: { id: String(ch.id) } }}
               asChild>
@@ -294,36 +319,29 @@ function ChapterListView({
                 style={[
                   styles.chapterCard,
                   {
-                    backgroundColor: theme.surface,
                     borderColor: theme.borderSoft,
                     borderLeftColor: theme.accent,
                   },
                 ]}>
-                <View style={styles.chapterCardTop}>
-                  <ThemedText type="defaultSemiBold" style={styles.chapterTitle}>
-                    {ch.title}
-                  </ThemedText>
-                  {ch.category ? (
-                    <View style={[styles.badge, { backgroundColor: CategoryColors[ch.category] ?? '#b5ac95' }]}>
-                      <ThemedText style={styles.badgeText}>{ch.category}</ThemedText>
-                    </View>
-                  ) : null}
-                </View>
-                {ch.summary ? (
-                  <ThemedText style={[styles.chapterSummary, { color: theme.textMuted }]} numberOfLines={2}>
-                    {ch.summary}
-                  </ThemedText>
+              <View style={styles.chapterCardTop}>
+                <ThemedText type="defaultSemiBold" style={styles.chapterTitle}>
+                  {ch.title}
+                </ThemedText>
+                {ch.is_favorite ? <ThemedText style={styles.mark}>⭐</ThemedText> : null}
+                {ch.is_heart ? <ThemedText style={styles.mark}>💗</ThemedText> : null}
+                {ch.category ? (
+                  <View style={[styles.badge, { backgroundColor: CategoryColors[ch.category] ?? '#b5ac95' }]}>
+                    <ThemedText style={styles.badgeText}>{ch.category}</ThemedText>
+                  </View>
                 ) : null}
-              </Pressable>
-            </Link>
-            <View style={styles.favColumn}>
-              <Pressable onPress={() => onToggleImportant(ch)} hitSlop={6} style={styles.favButton}>
-                <ThemedText style={styles.favIcon}>{ch.is_favorite ? '⭐' : '☆'}</ThemedText>
-              </Pressable>
-              <Pressable onPress={() => onToggleHeart(ch)} hitSlop={6} style={styles.favButton}>
-                <ThemedText style={styles.favIcon}>{ch.is_heart ? '💗' : '♡'}</ThemedText>
-              </Pressable>
-            </View>
+              </View>
+              {ch.summary ? (
+                <ThemedText style={[styles.chapterSummary, { color: theme.textMuted }]} numberOfLines={2}>
+                  {ch.summary}
+                </ThemedText>
+              ) : null}
+            </Pressable>
+          </Link>
           </View>
         ))
       )}
@@ -363,32 +381,113 @@ function FilterChip({
 
 // ============== タイムライン（分類前の初期ビュー）==============
 
-function TimelineView({ messages, theme }: { messages: MessageWithMedia[]; theme: Theme }) {
-  // TimelineView は messages: MessageWithMedia[] を受け取る（変更済み）
+function TimelineView({
+  messages,
+  theme,
+  showViewToggle,
+  viewMode,
+  onChangeViewMode,
+}: {
+  messages: MessageWithMedia[];
+  theme: Theme;
+  showViewToggle?: boolean;
+  viewMode?: ViewMode;
+  onChangeViewMode?: (m: ViewMode) => void;
+}) {
   const sections = useMemo(() => groupByDate(messages), [messages]);
   const myName = messages[0]?.sender_name ?? '';
+  // 章ありの場合は「日付別」モード → 初期状態は全部閉じる。章なしの場合は時系列で全部開く。
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    if (showViewToggle) return new Set();
+    return new Set(sections.map(s => s.title));
+  });
+
+  function toggleDate(date: string) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  }
 
   return (
-    <SectionList
-      sections={sections}
-      keyExtractor={m => String(m.id)}
-      ListHeaderComponent={
+    <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
+      {showViewToggle && viewMode && onChangeViewMode ? (
+        <View style={{ paddingHorizontal: 12, paddingTop: 12 }}>
+          <ViewModeToggle theme={theme} value={viewMode} onChange={onChangeViewMode} />
+        </View>
+      ) : (
         <View style={[styles.ctaBox, { backgroundColor: theme.surface }]}>
           <ThemedText style={styles.ctaText}>
             ヘッダーの「記憶に分ける」ボタンを押すと、AIが話題ごとに記憶として整理します。
           </ThemedText>
         </View>
-      }
-      renderSectionHeader={({ section }) => (
-        <View style={[styles.dateHeader, { backgroundColor: theme.surfaceAlt }]}>
-          <ThemedText type="defaultSemiBold" style={styles.dateHeaderText}>
-            {section.title}
-          </ThemedText>
-        </View>
       )}
-      renderItem={({ item }) => <MessageBubble theme={theme} message={item} isOwn={item.sender_name !== myName} />}
-      stickySectionHeadersEnabled
-    />
+
+      {sections.map(section => {
+        const isOpen = expanded.has(section.title);
+        return (
+          <View key={section.title}>
+            <Pressable
+              onPress={() => toggleDate(section.title)}
+              style={[
+                styles.dateRow,
+                {
+                  backgroundColor: 'rgba(255, 255, 255, 0.30)',
+                  borderColor: theme.borderSoft,
+                },
+              ]}>
+              <ThemedText type="defaultSemiBold" style={styles.dateRowText}>
+                {section.title}
+              </ThemedText>
+              <View style={styles.dateRowMeta}>
+                <ThemedText style={[styles.dateRowCount, { color: theme.textMuted }]}>
+                  {section.data.length} 件
+                </ThemedText>
+                <ThemedText style={[styles.dateRowChevron, { color: theme.textMuted }]}>
+                  {isOpen ? '▾' : '▸'}
+                </ThemedText>
+              </View>
+            </Pressable>
+            {isOpen
+              ? section.data.map(m => (
+                  <MessageBubble key={m.id} theme={theme} message={m} isOwn={m.sender_name !== myName} />
+                ))
+              : null}
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+function ViewModeToggle({
+  theme,
+  value,
+  onChange,
+}: {
+  theme: Theme;
+  value: ViewMode;
+  onChange: (m: ViewMode) => void;
+}) {
+  return (
+    <View style={[styles.viewToggle, { backgroundColor: theme.surface, borderColor: theme.borderSoft }]}>
+      <Pressable
+        style={[styles.viewToggleItem, value === 'chapters' && { backgroundColor: theme.tint }]}
+        onPress={() => onChange('chapters')}>
+        <ThemedText style={[styles.viewToggleText, value === 'chapters' && { color: '#fff' }]}>
+          記憶別
+        </ThemedText>
+      </Pressable>
+      <Pressable
+        style={[styles.viewToggleItem, value === 'dates' && { backgroundColor: theme.tint }]}
+        onPress={() => onChange('dates')}>
+        <ThemedText style={[styles.viewToggleText, value === 'dates' && { color: '#fff' }]}>
+          日付別
+        </ThemedText>
+      </Pressable>
+    </View>
   );
 }
 
@@ -526,7 +625,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   placeholder: { opacity: 0.6, textAlign: 'center', marginTop: 40 },
 
-  listPad: { padding: 12 },
+  listPad: { padding: 12, paddingLeft: 30 },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -540,6 +639,37 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   graphButtonText: { fontSize: 13 },
+
+  viewToggle: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    padding: 3,
+    marginBottom: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  viewToggleItem: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 11,
+    alignItems: 'center',
+  },
+  viewToggleText: { fontSize: 13, fontWeight: '500' },
+
+  dateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: 12,
+    marginVertical: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  dateRowText: { fontSize: 14 },
+  dateRowMeta: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dateRowCount: { fontSize: 12 },
+  dateRowChevron: { fontSize: 14 },
   filterRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   catRow: { gap: 8, paddingBottom: 10 },
 
@@ -553,19 +683,18 @@ const styles = StyleSheet.create({
   filterChipTextActive: { color: '#fff' },
   emptyFiltered: { opacity: 0.6, textAlign: 'center', padding: 24 },
 
-  chapterCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 4,
-  },
   chapterCard: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     borderLeftWidth: 3,
-    borderWidth: StyleSheet.hairlineWidth,
   },
+  chapterSeparator: {
+    height: 1,
+    backgroundColor: 'rgba(138, 168, 120, 0.5)',
+    marginHorizontal: 4,
+    marginVertical: 15,
+  },
+  mark: { fontSize: 13 },
   chapterCardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -581,9 +710,6 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontSize: 10, color: '#fff' },
 
-  favColumn: { alignItems: 'center', justifyContent: 'center' },
-  favButton: { paddingHorizontal: 6, paddingVertical: 2 },
-  favIcon: { fontSize: 20 },
 
   ctaBox: {
     margin: 12,

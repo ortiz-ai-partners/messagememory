@@ -1,10 +1,15 @@
+import { Link, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { WoodTexture } from '@/components/wood-texture';
+import { useTheme } from '@/hooks/use-theme';
+import { openDb } from '@/src/db';
+import { deleteAllConversations, listConversations } from '@/src/db/queries';
 import { clearApiKey, loadApiKey, saveApiKey } from '@/src/secrets/apiKeyStore';
+import { resetOnboarding } from '@/src/secrets/preferences';
 
 function mask(key: string): string {
   if (!key) return '';
@@ -13,14 +18,19 @@ function mask(key: string): string {
 }
 
 export default function SettingsScreen() {
+  const theme = useTheme();
   const [input, setInput] = useState('');
   const [saved, setSaved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [conversationCount, setConversationCount] = useState<number>(0);
 
   useEffect(() => {
     (async () => {
       const existing = await loadApiKey();
       setSaved(existing);
+      const db = await openDb();
+      const rows = await listConversations(db);
+      setConversationCount(rows.length);
     })();
   }, []);
 
@@ -55,56 +65,154 @@ export default function SettingsScreen() {
     ]);
   }
 
+  async function handleDeleteAllData() {
+    Alert.alert(
+      'すべての会話を削除しますか？',
+      `${conversationCount} 件の会話・章・お気に入り・写真がすべて消えます。\n元に戻せません。`,
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: 'すべて削除',
+          style: 'destructive',
+          onPress: async () => {
+            const db = await openDb();
+            await deleteAllConversations(db);
+            setConversationCount(0);
+            Alert.alert('削除しました', 'すべての会話データを削除しました。');
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleResetOnboarding() {
+    Alert.alert('オンボーディングをやり直しますか？', '性別選択画面が再表示されます。', [
+      { text: 'キャンセル', style: 'cancel' },
+      {
+        text: 'やり直す',
+        onPress: async () => {
+          await resetOnboarding();
+          router.replace('/onboarding');
+        },
+      },
+    ]);
+  }
+
   return (
     <ThemedView style={styles.container}>
       <WoodTexture />
-      <ThemedText type="title">設定</ThemedText>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <ThemedText type="title">設定</ThemedText>
 
-      <View style={styles.section}>
-        <ThemedText type="subtitle">Anthropic APIキー</ThemedText>
-        <ThemedText style={styles.hint}>
-          トピック分類に使用します。キーは端末のセキュア領域にのみ保存され、外部に送信されません。
-        </ThemedText>
-
-        {saved ? (
-          <View style={styles.savedRow}>
-            <ThemedText style={styles.mono}>{mask(saved)}</ThemedText>
-            <Pressable onPress={handleClear}>
-              <ThemedText style={styles.clearText}>削除</ThemedText>
-            </Pressable>
-          </View>
-        ) : (
-          <ThemedText style={styles.notSet}>未設定</ThemedText>
-        )}
-
-        <TextInput
-          style={styles.input}
-          placeholder="sk-ant-api03-..."
-          placeholderTextColor="#888"
-          value={input}
-          onChangeText={setInput}
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-        />
-
-        <Pressable
-          style={[styles.saveButton, (busy || !input) && styles.saveButtonDisabled]}
-          onPress={handleSave}
-          disabled={busy || !input}>
-          <ThemedText type="defaultSemiBold" style={styles.saveButtonText}>
-            保存
+        {/* データ管理 */}
+        <View style={styles.section}>
+          <ThemedText type="subtitle">データ</ThemedText>
+          <ThemedText style={[styles.hint, { color: theme.textMuted }]}>
+            現在 {conversationCount} 件の会話が記録されています。
           </ThemedText>
-        </Pressable>
-      </View>
+
+          <Link href="/import" asChild>
+            <Pressable style={[styles.actionRow, { borderColor: theme.borderSoft, backgroundColor: theme.surface }]}>
+              <ThemedText type="defaultSemiBold">＋ 新しい会話を取り込む</ThemedText>
+              <ThemedText style={[styles.chevron, { color: theme.textMuted }]}>›</ThemedText>
+            </Pressable>
+          </Link>
+          <ThemedText style={[styles.subHint, { color: theme.textMuted }]}>
+            取り込むと、本棚に「新しい1冊」として追加されます。既存の会話には上書きされません。
+          </ThemedText>
+
+          <Pressable
+            style={[styles.actionRow, { borderColor: theme.borderSoft, backgroundColor: theme.surface }]}
+            onPress={handleDeleteAllData}>
+            <ThemedText type="defaultSemiBold" style={{ color: theme.danger }}>
+              すべての会話を削除
+            </ThemedText>
+            <ThemedText style={[styles.chevron, { color: theme.textMuted }]}>›</ThemedText>
+          </Pressable>
+        </View>
+
+        {/* Anthropic APIキー */}
+        <View style={styles.section}>
+          <ThemedText type="subtitle">Anthropic APIキー</ThemedText>
+          <ThemedText style={[styles.hint, { color: theme.textMuted }]}>
+            トピック分類・会話の感想に使用します。キーは端末のセキュア領域にのみ保存され、外部に送信されません。
+          </ThemedText>
+
+          {saved ? (
+            <View style={styles.savedRow}>
+              <ThemedText style={styles.mono}>{mask(saved)}</ThemedText>
+              <Pressable onPress={handleClear}>
+                <ThemedText style={{ color: theme.danger }}>削除</ThemedText>
+              </Pressable>
+            </View>
+          ) : (
+            <ThemedText style={styles.notSet}>未設定</ThemedText>
+          )}
+
+          <TextInput
+            style={styles.input}
+            placeholder="sk-ant-api03-..."
+            placeholderTextColor="#888"
+            value={input}
+            onChangeText={setInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+          />
+
+          <Pressable
+            style={[styles.saveButton, { backgroundColor: theme.tint }, (busy || !input) && styles.saveButtonDisabled]}
+            onPress={handleSave}
+            disabled={busy || !input}>
+            <ThemedText type="defaultSemiBold" style={styles.saveButtonText}>
+              保存
+            </ThemedText>
+          </Pressable>
+        </View>
+
+        {/* その他 */}
+        <View style={styles.section}>
+          <ThemedText type="subtitle">その他</ThemedText>
+
+          <Link href="/help" asChild>
+            <Pressable style={[styles.actionRow, { borderColor: theme.borderSoft, backgroundColor: theme.surface }]}>
+              <ThemedText type="defaultSemiBold">📖 使い方を見る</ThemedText>
+              <ThemedText style={[styles.chevron, { color: theme.textMuted }]}>›</ThemedText>
+            </Pressable>
+          </Link>
+
+          <Pressable
+            style={[styles.actionRow, { borderColor: theme.borderSoft, backgroundColor: theme.surface }]}
+            onPress={handleResetOnboarding}>
+            <ThemedText type="defaultSemiBold">オンボーディングをやり直す</ThemedText>
+            <ThemedText style={[styles.chevron, { color: theme.textMuted }]}>›</ThemedText>
+          </Pressable>
+        </View>
+
+        <View style={{ height: 60 }} />
+      </ScrollView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, paddingTop: 56 },
-  section: { marginTop: 24 },
-  hint: { fontSize: 13, opacity: 0.7, marginTop: 6, lineHeight: 18 },
+  section: { marginTop: 28 },
+  hint: { fontSize: 13, marginTop: 6, lineHeight: 18 },
+  subHint: { fontSize: 11, marginTop: 8, paddingHorizontal: 4, lineHeight: 16 },
+
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  chevron: { fontSize: 20 },
+
   savedRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -117,7 +225,7 @@ const styles = StyleSheet.create({
   },
   mono: { fontFamily: 'Courier', fontSize: 13 },
   notSet: { marginTop: 14, opacity: 0.6 },
-  clearText: { color: '#d33' },
+
   input: {
     marginTop: 14,
     borderWidth: 1,
@@ -130,7 +238,6 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     marginTop: 12,
-    backgroundColor: '#8b6f47',
     paddingVertical: 12,
     borderRadius: 24,
     alignItems: 'center',
