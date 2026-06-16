@@ -1,9 +1,16 @@
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
+import { LoadingScreen } from '@/components/loading-screen';
 import { Colors } from '@/constants/theme';
+import { openDb } from '@/src/db';
+
+// ネイティブのスプラッシュを自分で制御する
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -23,7 +30,33 @@ const WoodNavTheme = {
   },
 };
 
+// Tipを読んでもらうための最低表示時間
+const MIN_LOADING_MS = 5000;
+
 export default function RootLayout() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await Promise.all([
+          openDb(),                                                        // DB起動
+          new Promise<void>(resolve => setTimeout(resolve, MIN_LOADING_MS)),
+        ]);
+      } catch {
+        // 失敗してもアプリは起動させる（後段でリカバリする）
+      }
+      if (!cancelled) {
+        setReady(true);
+        SplashScreen.hideAsync().catch(() => {});
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!ready) return <LoadingScreen />;
+
   return (
     <ThemeProvider value={WoodNavTheme}>
       <Stack>
