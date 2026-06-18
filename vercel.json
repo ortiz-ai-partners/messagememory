@@ -4,5 +4,6 @@
   "framework": null,
   "buildCommand": null,
   "installCommand": null,
-  "trailingSlash": false
+  "trailingSlash": false,
+  "cleanUrls": true
 }
