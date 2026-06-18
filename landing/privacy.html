@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>プライバシーポリシー — MessageMemory</title>
+<meta name="description" content="MessageMemory のプライバシーポリシー。会話データはすべて端末内に保管され、外部送信されません。">
+<style>
+  :root {
+    --cream: #fdfaf3;
+    --paper: #f5ecd9;
+    --paper-soft: #faf3e3;
+    --wood-light: #e8d6b3;
+    --wood-medium: #c8a878;
+    --wood-dark: #8b6f47;
+    --wood-deep: #5a4528;
+    --ink: #3e2f1e;
+    --ink-soft: #7a6a52;
+    --border-soft: #e8dcc4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    line-height: 1.8;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      radial-gradient(ellipse 120% 8% at 30% 12%, rgba(139, 111, 71, 0.05), transparent),
+      radial-gradient(ellipse 110% 6% at 70% 28%, rgba(139, 111, 71, 0.04), transparent),
+      radial-gradient(ellipse 130% 10% at 40% 45%, rgba(139, 111, 71, 0.06), transparent),
+      radial-gradient(ellipse 100% 7% at 65% 62%, rgba(139, 111, 71, 0.045), transparent),
+      radial-gradient(ellipse 115% 9% at 35% 80%, rgba(139, 111, 71, 0.05), transparent);
+  }
+
+  main, header, footer { position: relative; z-index: 1; }
+
+  header {
+    padding: 24px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 880px;
+    margin: 0 auto;
+  }
+  .logo {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--wood-deep);
+    text-decoration: none;
+  }
+  .logo::before {
+    content: "✦";
+    color: var(--wood-medium);
+    margin-right: 8px;
+  }
+  .nav-links { display: flex; gap: 24px; font-size: 14px; }
+  .nav-links a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--wood-dark); }
+
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+
+  h1 {
+    font-size: clamp(28px, 4vw, 36px);
+    color: var(--wood-deep);
+    font-weight: 600;
+    margin-bottom: 12px;
+    letter-spacing: -0.3px;
+  }
+
+  .meta {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-bottom: 32px;
+  }
+
+  .lang-toggle {
+    display: inline-flex;
+    background: var(--paper-soft);
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    padding: 3px;
+    margin-bottom: 32px;
+  }
+  .lang-toggle button {
+    background: transparent;
+    border: 0;
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .lang-toggle button.active {
+    background: var(--wood-dark);
+    color: white;
+  }
+
+  .lead {
+    font-size: 16px;
+    color: var(--ink-soft);
+    margin-bottom: 36px;
+    line-height: 1.9;
+    padding: 20px;
+    background: var(--paper-soft);
+    border-radius: 14px;
+    border-left: 3px solid var(--wood-medium);
+  }
+
+  h2 {
+    font-size: 19px;
+    color: var(--wood-deep);
+    font-weight: 600;
+    margin-top: 36px;
+    margin-bottom: 12px;
+  }
+  h2 .num {
+    color: var(--wood-medium);
+    margin-right: 8px;
+  }
+
+  p { margin-bottom: 14px; }
+  ul { margin-bottom: 14px; padding-left: 22px; }
+  ul li { margin-bottom: 8px; }
+
+  a { color: var(--wood-dark); }
+
+  .lang-section { display: none; }
+  .lang-section.active { display: block; }
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--border-soft);
+    margin: 48px 0 24px;
+  }
+
+  footer {
+    padding: 30px 32px;
+    border-top: 1px solid var(--border-soft);
+    text-align: center;
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-top: 40px;
+  }
+  footer a { color: var(--wood-dark); text-decoration: none; }
+
+  @media (max-width: 600px) {
+    header { padding: 20px 20px; }
+    main { padding: 20px 20px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="/" class="logo">MessageMemory</a>
+  <nav class="nav-links">
+    <a href="/">トップ</a>
+    <a href="https://github.com/ortiz-ai-partners/messagememory" target="_blank">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <h1>プライバシーポリシー</h1>
+  <p class="meta">最終更新: 2026年6月16日 / Last updated: June 16, 2026</p>
+
+  <div class="lang-toggle" role="tablist">
+    <button class="active" data-lang="ja">日本語</button>
+    <button data-lang="en">English</button>
+  </div>
+
+  <!-- ===== 日本語版 ===== -->
+  <section class="lang-section active" data-lang="ja">
+    <div class="lead">
+      MessageMemory（以下「本アプリ」）は、あなたのプライバシーを最優先に設計されています。
+      本ポリシーは、本アプリがどのような情報を扱い、扱わないかを明示するためのものです。
+    </div>
+
+    <h2><span class="num">1.</span>本アプリは情報を収集しません</h2>
+    <ul>
+      <li>本アプリは独自のサーバーを持ちません。</li>
+      <li>開発者および第三者は、あなたの個人情報、利用状況、会話内容を一切収集しません。</li>
+      <li>本アプリで取り込んだ会話データ（Facebook Messenger のエクスポートデータ等）は、すべてあなたの iPhone の中だけに保存されます。</li>
+      <li>会話データは、本アプリの外には送信されません（iOS のバックアップ機能を除く）。</li>
+    </ul>
+
+    <h2><span class="num">2.</span>第三者サービスとの通信</h2>
+    <ul>
+      <li>本アプリは、ユーザーが明示的に「記憶に分ける」「感想を生成する」等の AI 機能を実行した時にのみ、Anthropic 社の API (api.anthropic.com) と通信します。</li>
+      <li>その通信には、ユーザー自身が設定画面で登録した Anthropic API キーが使用されます（BYOK 方式）。</li>
+      <li>送信される内容は、章分けや感想生成に必要な会話メッセージのみで、Anthropic 社の <a href="https://www.anthropic.com/privacy" target="_blank">プライバシーポリシー</a> に従って処理されます。</li>
+      <li>API キーは iOS の Keychain（端末のセキュア領域）に保管され、本アプリ以外からは参照できません。</li>
+    </ul>
+
+    <h2><span class="num">3.</span>データの保管と削除</h2>
+    <ul>
+      <li>取り込んだ会話・写真・スタンプ・章分け結果・お気に入り情報は、iOS の本アプリ専用領域に SQLite データベースとして保管されます。</li>
+      <li>設定画面の「すべての会話を削除」、または本アプリのアンインストールにより、すべてのデータは完全に削除されます。</li>
+    </ul>
+
+    <h2><span class="num">4.</span>クッキー / トラッキング / 広告</h2>
+    <ul>
+      <li>本アプリはクッキーやトラッキング技術を使用しません。</li>
+      <li>本アプリ（v1.0）には広告は含まれていません。将来的に広告を導入する場合は、本ポリシーで事前に告知します。</li>
+    </ul>
+
+    <h2><span class="num">5.</span>子どもの利用</h2>
+    <ul>
+      <li>本アプリは 12 歳以上の利用を想定しています。</li>
+      <li>13 歳未満の子どもから故意に情報を収集することはありません。</li>
+    </ul>
+
+    <h2><span class="num">6.</span>本ポリシーの変更</h2>
+    <ul>
+      <li>本ポリシーは予告なく変更されることがあります。</li>
+      <li>重要な変更がある場合は、本アプリ内またはこのページで告知します。</li>
+    </ul>
+
+    <h2><span class="num">7.</span>お問い合わせ</h2>
+    <ul>
+      <li>本ポリシーまたは本アプリに関するお問い合わせ:</li>
+      <li>GitHub Issues: <a href="https://github.com/ortiz-ai-partners/messagememory/issues" target="_blank">github.com/ortiz-ai-partners/messagememory/issues</a></li>
+      <li>開発者: ortiz-ai-partners</li>
+    </ul>
+  </section>
+
+  <!-- ===== English ===== -->
+  <section class="lang-section" data-lang="en">
+    <div class="lead">
+      MessageMemory (the "App") is designed with privacy as a top priority.
+      This policy clarifies what information the App does and does not handle.
+    </div>
+
+    <h2><span class="num">1.</span>The App Does Not Collect Information</h2>
+    <ul>
+      <li>The App does not operate any server of its own.</li>
+      <li>Neither the developer nor any third party collects your personal information, usage data, or conversation content.</li>
+      <li>All conversation data imported into the App (e.g., Facebook Messenger export) is stored only within your iPhone.</li>
+      <li>Conversation data is never transmitted outside the App (except via iOS backup features under your control).</li>
+    </ul>
+
+    <h2><span class="num">2.</span>Third-Party Service Communication</h2>
+    <ul>
+      <li>The App only communicates with Anthropic's API (api.anthropic.com) when you explicitly invoke AI features such as "split into memories" or "generate commentary".</li>
+      <li>Such communication uses an Anthropic API key that you register in the settings screen (BYOK model).</li>
+      <li>Only conversation messages required for chaptering or commentary are sent, and they are processed under Anthropic's <a href="https://www.anthropic.com/privacy" target="_blank">privacy policy</a>.</li>
+      <li>API keys are stored in iOS Keychain (the device's secure area) and cannot be accessed by anything other than this App.</li>
+    </ul>
+
+    <h2><span class="num">3.</span>Data Storage and Deletion</h2>
+    <ul>
+      <li>Imported conversations, photos, stickers, chapter results, and favorite information are stored as SQLite databases in the App's private container on iOS.</li>
+      <li>All data is completely removed by tapping "Delete all conversations" in the settings screen, or by uninstalling the App.</li>
+    </ul>
+
+    <h2><span class="num">4.</span>Cookies / Tracking / Advertising</h2>
+    <ul>
+      <li>The App does not use cookies or tracking technologies.</li>
+      <li>The App (v1.0) does not contain advertisements. If advertising is introduced in the future, it will be announced in this policy in advance.</li>
+    </ul>
+
+    <h2><span class="num">5.</span>Children's Use</h2>
+    <ul>
+      <li>The App is intended for users aged 12 and over.</li>
+      <li>The App does not knowingly collect information from children under 13.</li>
+    </ul>
+
+    <h2><span class="num">6.</span>Changes to This Policy</h2>
+    <ul>
+      <li>This policy may change without notice.</li>
+      <li>Significant changes will be announced within the App or on this page.</li>
+    </ul>
+
+    <h2><span class="num">7.</span>Contact</h2>
+    <ul>
+      <li>For questions about this policy or the App:</li>
+      <li>GitHub Issues: <a href="https://github.com/ortiz-ai-partners/messagememory/issues" target="_blank">github.com/ortiz-ai-partners/messagememory/issues</a></li>
+      <li>Developer: ortiz-ai-partners</li>
+    </ul>
+  </section>
+</main>
+
+<footer>
+  © 2026 ortiz-ai-partners. All Rights Reserved. &nbsp;·&nbsp;
+  <a href="/">MessageMemory</a> &nbsp;·&nbsp;
+  <a href="https://github.com/ortiz-ai-partners/messagememory">GitHub</a>
+</footer>
+
+<script>
+  const buttons = document.querySelectorAll('.lang-toggle button');
+  const sections = document.querySelectorAll('.lang-section');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lang = btn.dataset.lang;
+      buttons.forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+      sections.forEach(s => s.classList.toggle('active', s.dataset.lang === lang));
+      document.documentElement.lang = lang;
+    });
+  });
+</script>
+
+</body>
+</html>
