@@ -1,17 +1,20 @@
 {
   "expo": {
-    "name": "chatviewer",
-    "slug": "chatviewer",
+    "name": "MessageMemory",
+    "slug": "messagememory",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "chatviewer",
+    "scheme": "messagememory",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "partners.ortizai.messagememory",
+      "buildNumber": "1",
       "supportsTablet": true
     },
     "android": {
+      "package": "partners.ortizai.messagememory",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -45,6 +48,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "795c55c3-a97e-4930-aa69-fc1af3348421"
+      }
+    },
+    "owner": "ortizais-team"
   }
 }
