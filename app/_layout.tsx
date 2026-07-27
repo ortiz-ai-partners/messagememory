@@ -66,6 +66,7 @@ export default function RootLayout() {
         <Stack.Screen name="conversation/[id]" options={{ title: '会話', headerBackTitle: '本棚' }} />
         <Stack.Screen name="chapter/[id]" options={{ title: 'トピック' }} />
         <Stack.Screen name="stats/[id]" options={{ title: 'カテゴリ分布' }} />
+        <Stack.Screen name="stats/all" options={{ title: '本棚全体' }} />
         <Stack.Screen name="help" options={{ title: '使い方' }} />
       </Stack>
       <StatusBar style="dark" />

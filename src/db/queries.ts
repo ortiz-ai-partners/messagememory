@@ -258,6 +258,87 @@ export async function countChaptersByCategory(
   );
 }
 
+/** 本棚全体（すべての会話）のカテゴリ分布。 */
+export async function countAllChaptersByCategory(
+  db: SQLite.SQLiteDatabase,
+): Promise<CategoryCount[]> {
+  return db.getAllAsync<CategoryCount>(
+    `SELECT COALESCE(category, 'その他') AS category, COUNT(*) AS count
+     FROM chapters
+     GROUP BY COALESCE(category, 'その他')
+     ORDER BY count DESC`,
+  );
+}
+
+/** アプリレベルのKey-Valueメタデータ取得。 */
+export async function getAppMeta(
+  db: SQLite.SQLiteDatabase,
+  key: string,
+): Promise<{ value: string; updated_at: number } | null> {
+  const row = await db.getFirstAsync<{ value: string; updated_at: number }>(
+    'SELECT value, updated_at FROM app_meta WHERE key = ?',
+    [key],
+  );
+  return row ?? null;
+}
+
+/** アプリレベルのKey-Value書き込み（upsert）。 */
+export async function setAppMeta(
+  db: SQLite.SQLiteDatabase,
+  key: string,
+  value: string,
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO app_meta (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    [key, value, Date.now()],
+  );
+}
+
+/** 本棚全体のAI感想用に、各会話のメタ情報＋コメンタリを取得する。 */
+export type ConversationBriefForOverall = {
+  id: number;
+  title: string;
+  ai_commentary: string | null;
+  imported_at: number;
+};
+
+export async function getConversationsForOverallCommentary(
+  db: SQLite.SQLiteDatabase,
+): Promise<ConversationBriefForOverall[]> {
+  return db.getAllAsync<ConversationBriefForOverall>(
+    `SELECT id, title, ai_commentary, imported_at
+     FROM conversations
+     ORDER BY imported_at ASC`,
+  );
+}
+
+/** 本棚全体の俯瞰統計。 */
+export async function getOverallStats(db: SQLite.SQLiteDatabase): Promise<{
+  conversationCount: number;
+  chapterCount: number;
+  messageCount: number;
+  startDate: number | null;
+  endDate: number | null;
+}> {
+  const conv = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM conversations',
+  );
+  const ch = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM chapters',
+  );
+  const msg = await db.getFirstAsync<{ c: number; s: number | null; e: number | null }>(
+    'SELECT COUNT(*) AS c, MIN(timestamp_ms) AS s, MAX(timestamp_ms) AS e FROM messages',
+  );
+  return {
+    conversationCount: conv?.c ?? 0,
+    chapterCount: ch?.c ?? 0,
+    messageCount: msg?.c ?? 0,
+    startDate: msg?.s ?? null,
+    endDate: msg?.e ?? null,
+  };
+}
+
 export async function getMessagesInRange(
   db: SQLite.SQLiteDatabase,
   conversationId: number,

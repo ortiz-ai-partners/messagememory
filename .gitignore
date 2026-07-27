@@ -12,6 +12,9 @@ expo-env.d.ts
 # Vercel
 .vercel/
 
+# Claude Code
+.claude/
+
 # Native
 .kotlin/
 *.orig.*

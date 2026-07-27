@@ -131,6 +131,12 @@ export async function importConversationFromZip(
   }
 
   const totalMedia = merged.messages.reduce((n, m) => n + m.media.length, 0);
+  if (totalMedia === 0) {
+    onProgress?.(`${merged.messages.length} 件のメッセージを保存中...`);
+  } else {
+    onProgress?.(`メディア 0 / ${totalMedia} 件を展開中...`);
+  }
+
   let done = 0;
   for (const msg of merged.messages) {
     for (const media of msg.media) {
@@ -148,12 +154,14 @@ export async function importConversationFromZip(
         // 個別失敗は無視（表示時にフォールバック）
       }
       done++;
-      if (totalMedia > 0 && done % 10 === 0) {
-        onProgress?.(`メディアを展開中... ${done}/${totalMedia}`);
+      // 細かく進捗を出して、止まってないことが分かるようにする
+      if (totalMedia > 0 && done % 3 === 0) {
+        const pct = Math.floor((done / totalMedia) * 100);
+        onProgress?.(`メディア ${done} / ${totalMedia} 件を展開中... (${pct}%)`);
       }
     }
   }
 
-  onProgress?.('保存中...');
+  onProgress?.('もう少しで完了 ✦ 保存中...');
   return merged;
 }

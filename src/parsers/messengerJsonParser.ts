@@ -52,6 +52,82 @@ type RawExport = {
   thread_path?: string;
 };
 
+// 他ツール / Meta 新形式: participants は文字列配列、フィールド名が camelCase
+type AltMessage = {
+  senderName?: string;
+  timestamp?: number;
+  text?: string;
+  type?: string;
+  media?: { uri: string }[];
+  isUnsent?: boolean;
+};
+
+type AltExport = {
+  participants?: (string | { name: string })[];
+  messages?: AltMessage[];
+  threadName?: string;
+  title?: string;
+  thread_path?: string;
+};
+
+function classifyMediaUri(uri: string): 'photo' | 'sticker' | 'gif' | 'video' {
+  const ext = uri.toLowerCase().split('.').pop() ?? '';
+  if (ext === 'gif') return 'gif';
+  if (ext === 'mp4' || ext === 'mov' || ext === 'm4v') return 'video';
+  if (ext === 'webp') return 'sticker';
+  return 'photo';
+}
+
+function normalizeAltMessage(m: AltMessage): RawMessage {
+  const media = m.media ?? [];
+  const photos: { uri: string }[] = [];
+  const gifs: { uri: string }[] = [];
+  const videos: { uri: string }[] = [];
+  let sticker: { uri: string } | undefined;
+
+  for (const med of media) {
+    const kind = classifyMediaUri(med.uri);
+    if (kind === 'photo') photos.push({ uri: med.uri });
+    else if (kind === 'gif') gifs.push({ uri: med.uri });
+    else if (kind === 'video') videos.push({ uri: med.uri });
+    else if (kind === 'sticker' && !sticker) sticker = { uri: med.uri };
+  }
+
+  return {
+    sender_name: m.senderName,
+    timestamp_ms: m.timestamp,
+    content: m.text || undefined,
+    type: m.type,
+    photos: photos.length > 0 ? photos : undefined,
+    gifs: gifs.length > 0 ? gifs : undefined,
+    videos: videos.length > 0 ? videos : undefined,
+    sticker,
+  };
+}
+
+/** 標準FBフォーマットでなければ正規化する */
+function normalizeRawExport(raw: AltExport | RawExport): RawExport {
+  const participants = raw.participants ?? [];
+  // Facebook 標準: participants が {name} オブジェクトの配列
+  const isStandardFormat =
+    participants.length > 0 && typeof (participants[0] as { name?: string }).name === 'string';
+
+  if (isStandardFormat) {
+    return raw as RawExport;
+  }
+
+  // 別形式 → 標準形に変換
+  const alt = raw as AltExport;
+  return {
+    title: alt.threadName ?? alt.title,
+    participants: (alt.participants ?? []).map(p =>
+      typeof p === 'string' ? { name: p } : p,
+    ),
+    messages: (alt.messages ?? []).map(normalizeAltMessage),
+    thread_path: alt.thread_path,
+  };
+}
+
 function fix(s: string | undefined | null): string {
   if (s == null) return '';
   return fixMessengerEncoding(s);
@@ -77,9 +153,10 @@ function extractMedia(raw: RawMessage): ParsedMessage['media'] {
 }
 
 export function parseMessengerJson(jsonText: string): ParsedConversation {
-  const raw: RawExport = JSON.parse(jsonText);
+  const parsed = JSON.parse(jsonText);
+  const raw: RawExport = normalizeRawExport(parsed);
 
-  const title = fix(raw.title) || '(タイトル不明)';
+  const title = fix(raw.title) || '✎ 名前を付けてね';
   const participants = (raw.participants ?? []).map(p => fix(p.name)).filter(Boolean);
   const thread_path = raw.thread_path ?? null;
 

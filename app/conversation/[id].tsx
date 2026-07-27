@@ -63,6 +63,7 @@ export default function ConversationDetailScreen() {
   const [chapters, setChapters] = useState<ChapterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [segmenting, setSegmenting] = useState(false);
+  const [segmentProgress, setSegmentProgress] = useState<{ current: number; total: number } | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(category ?? null);
   const [viewMode, setViewMode] = useState<ViewMode>('chapters');
@@ -72,24 +73,39 @@ export default function ConversationDetailScreen() {
     if (category) setSelectedCategory(category);
   }, [category]);
 
-  const load = useCallback(async () => {
+  const [messagesLoading, setMessagesLoading] = useState(false);
+
+  // 軽い情報（会話メタ＋章のみ）。大量メッセージは読み込まない。
+  const loadBasic = useCallback(async () => {
     if (!Number.isFinite(conversationId)) return;
     const db = await openDb();
-    const [conv, msgs, chs] = await Promise.all([
+    const [conv, chs] = await Promise.all([
       getConversation(db, conversationId),
-      getMessagesWithMedia(db, conversationId),
       listChapters(db, conversationId),
     ]);
     setConversation(conv);
-    setMessages(msgs);
     setChapters(chs);
     setLoading(false);
   }, [conversationId]);
 
-  // 章詳細から戻ってきた時にも反映されるよう、フォーカスのたびに読み直す
+  // 重い処理：メッセージ＋メディア。日付別表示や AI 分類で必要になった時だけ呼ぶ。
+  const ensureMessages = useCallback(async (): Promise<MessageWithMedia[]> => {
+    if (messages.length > 0) return messages;
+    setMessagesLoading(true);
+    try {
+      const db = await openDb();
+      const msgs = await getMessagesWithMedia(db, conversationId);
+      setMessages(msgs);
+      return msgs;
+    } finally {
+      setMessagesLoading(false);
+    }
+  }, [conversationId, messages]);
+
+  // 章詳細から戻ってきた時にも反映されるよう、フォーカスのたびに「軽い」方だけ読み直す
   useFocusEffect(useCallback(() => {
-    load();
-  }, [load]));
+    loadBasic();
+  }, [loadBasic]));
 
   async function handleToggleImportant(chapter: ChapterRow) {
     const next = chapter.is_favorite === 1 ? 0 : 1;
@@ -112,27 +128,29 @@ export default function ConversationDetailScreen() {
       Alert.alert('APIキー未設定', '設定画面で Anthropic API キーを登録してください。');
       return;
     }
-    if (messages.length === 0) {
-      Alert.alert('メッセージが空です');
-      return;
-    }
-
     setSegmenting(true);
+    setSegmentProgress(null);
     try {
-      const result = await segmentConversation(apiKey, messages);
+      const msgs = await ensureMessages();
+      if (msgs.length === 0) {
+        Alert.alert('メッセージが空です');
+        return;
+      }
+      const result = await segmentConversation(apiKey, msgs, p => setSegmentProgress(p));
       if (result.length === 0) {
         Alert.alert('章を生成できませんでした', 'メッセージが少なすぎる可能性があります。');
         return;
       }
       const db = await openDb();
       await replaceChapters(db, conversationId, result, SEGMENTER_MODEL);
-      await load();
+      await loadBasic();
       Alert.alert('完了', `${result.length} 章に分類しました`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       Alert.alert('エラー', msg);
     } finally {
       setSegmenting(false);
+      setSegmentProgress(null);
     }
   }
 
@@ -154,7 +172,14 @@ export default function ConversationDetailScreen() {
           title: conversation?.title ?? '会話',
           headerRight: () =>
             segmenting ? (
-              <ActivityIndicator style={{ marginRight: 12 }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 12 }}>
+                <ActivityIndicator />
+                {segmentProgress ? (
+                  <ThemedText style={{ fontSize: 11, color: theme.textMuted }}>
+                    {segmentProgress.current}/{segmentProgress.total}
+                  </ThemedText>
+                ) : null}
+              </View>
             ) : (
               <Pressable onPress={handleSegment} hitSlop={8} style={{ marginRight: 12 }}>
                 <ThemedText type="defaultSemiBold" style={{ color: theme.tint }}>
@@ -167,8 +192,6 @@ export default function ConversationDetailScreen() {
 
       {loading ? (
         <ThemedText style={styles.placeholder}>読み込み中...</ThemedText>
-      ) : messages.length === 0 ? (
-        <ThemedText style={styles.placeholder}>メッセージがありません</ThemedText>
       ) : hasChapters && viewMode === 'chapters' ? (
         <ChapterListView
           theme={theme}
@@ -182,18 +205,41 @@ export default function ConversationDetailScreen() {
           onToggleImportant={handleToggleImportant}
           onToggleHeart={handleToggleHeart}
           viewMode={viewMode}
-          onChangeViewMode={setViewMode}
+          onChangeViewMode={(m: ViewMode) => {
+            // 日付別に切替時にメッセージを遅延読み込み
+            if (m === 'dates') ensureMessages();
+            setViewMode(m);
+          }}
         />
       ) : hasChapters ? (
-        <TimelineView
-          messages={messages}
-          theme={theme}
-          showViewToggle
-          viewMode={viewMode}
-          onChangeViewMode={setViewMode}
-        />
+        messagesLoading ? (
+          <View style={styles.loadingArea}>
+            <ActivityIndicator color={theme.tint} />
+            <ThemedText style={[styles.placeholder, { marginTop: 12 }]}>
+              メッセージを読み込み中...
+            </ThemedText>
+          </View>
+        ) : (
+          <TimelineView
+            messages={messages}
+            theme={theme}
+            showViewToggle
+            viewMode={viewMode}
+            onChangeViewMode={(m: ViewMode) => {
+              if (m === 'dates') ensureMessages();
+              setViewMode(m);
+            }}
+          />
+        )
       ) : (
-        <TimelineView messages={messages} theme={theme} />
+        // 章未生成。メッセージ全件を持ち出すと重いので、AI分類CTAだけ出す。
+        <View style={styles.loadingArea}>
+          <View style={[styles.ctaBox, { backgroundColor: theme.surface }]}>
+            <ThemedText style={styles.ctaText}>
+              ヘッダー右上の「記憶に分ける」をタップすると、AIが話題ごとに記憶として整理します。
+            </ThemedText>
+          </View>
+        </View>
       )}
     </ThemedView>
   );
@@ -624,6 +670,7 @@ function localUri(localPath: string): string {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   placeholder: { opacity: 0.6, textAlign: 'center', marginTop: 40 },
+  loadingArea: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
 
   listPad: { padding: 12, paddingLeft: 30 },
   summaryRow: {

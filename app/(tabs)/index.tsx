@@ -128,6 +128,21 @@ export default function ConversationsScreen() {
           </Link>
         </View>
 
+        {conversations.length > 0 ? (
+          <Link href="/stats/all" asChild>
+            <Pressable
+              style={[
+                styles.overallStatsCard,
+                { backgroundColor: theme.surface, borderColor: theme.tint },
+              ]}>
+              <ThemedText style={[styles.overallStatsText, { color: theme.tint }]}>
+                📊 本棚全体の会話グラフを見る
+              </ThemedText>
+              <ThemedText style={[styles.chevron, { color: theme.tint }]}>›</ThemedText>
+            </Pressable>
+          </Link>
+        ) : null}
+
         {loading ? (
           <ThemedText style={styles.placeholder}>読み込み中...</ThemedText>
         ) : conversations.length === 0 ? (
@@ -291,6 +306,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  overallStatsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 12,
+  },
+  overallStatsText: { fontSize: 14, fontWeight: '600' },
+  chevron: { fontSize: 20 },
   importButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,

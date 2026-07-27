@@ -26,6 +26,7 @@ import {
 } from '@/src/parsers/zipImport';
 import { getGender } from '@/src/secrets/preferences';
 import { SAMPLES, type SampleKey } from '@/src/test/sampleJson';
+import { READING_TIPS } from '@/src/copy/readingTips';
 
 type Stage = 'idle' | 'working' | 'picking';
 
@@ -38,6 +39,16 @@ export default function ImportScreen() {
   const [sampleOrder, setSampleOrder] = useState<SampleKey[]>(['ortis', 'rilmu']);
   const [zip, setZip] = useState<JSZip | null>(null);
   const [zipConversations, setZipConversations] = useState<ConversationInZip[]>([]);
+  const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * READING_TIPS.length));
+
+  // 取り込み中は人間関係 Tip を 6 秒ごとにローテーションする
+  useEffect(() => {
+    if (stage !== 'working') return;
+    const interval = setInterval(() => {
+      setTipIndex(i => (i + 1) % READING_TIPS.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [stage]);
 
   useEffect(() => {
     (async () => {
@@ -216,6 +227,13 @@ export default function ImportScreen() {
           </View>
 
           <ThemedText style={[styles.status, { color: theme.textMuted }]}>{status}</ThemedText>
+
+          {busy ? (
+            <View style={[styles.tipCard, { backgroundColor: theme.surface, borderColor: theme.borderSoft }]}>
+              <ThemedText style={[styles.tipLabel, { color: theme.tint }]}>♢  READING TIP</ThemedText>
+              <ThemedText style={styles.tipText}>{READING_TIPS[tipIndex]}</ThemedText>
+            </View>
+          ) : null}
         </>
       )}
     </ThemedView>
@@ -307,6 +325,23 @@ const styles = StyleSheet.create({
   sampleButtonText: { fontSize: 14 },
 
   status: { marginTop: 24, textAlign: 'center' },
+
+  tipCard: {
+    marginTop: 28,
+    padding: 18,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  tipLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  tipText: {
+    fontSize: 14,
+    lineHeight: 23,
+  },
 
   pickerContainer: { flex: 1, marginTop: 16 },
   pickerHeader: {

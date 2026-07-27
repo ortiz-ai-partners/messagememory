@@ -76,4 +76,13 @@ export const MIGRATIONS: string[] = [
   `
     ALTER TABLE conversations ADD COLUMN color TEXT;
   `,
+
+  // v7: アプリレベルのKey-Valueメタデータ（本棚全体のAI感想キャッシュ等）
+  `
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at INTEGER
+    );
+  `,
 ];
